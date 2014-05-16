@@ -16,6 +16,7 @@ from docx.package import Package
 from docx.parts.numbering import NumberingPart
 from docx.parts.styles import StylesPart
 from docx.shared import lazyproperty
+from docx.html import add_html
 
 
 _thisdir = os.path.split(__file__)[0]
@@ -110,6 +111,13 @@ class Document(object):
         if style:
             table.style = style
         return table
+
+    def add_html_content(self, html):
+        """
+        Convert a given html string to according docx elements
+        and append them at the end of this document.
+        """
+        add_html(self, html)
 
     @property
     def inline_shapes(self):
