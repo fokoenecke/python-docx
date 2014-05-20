@@ -2,10 +2,10 @@
 
 """
 Converter recursively iterating over HTML ElementTree(etree)
-mapping HTML tags to their corresponding docx create functions.
+mapping HTML tags to their corresponding python-docx functions.
 Appending full HTML structure to the given document.
 """
-from docx.html.dispatcher import get_append_call
+from docx.html.dispatcher import get_tag_dispatcher
 
 
 class DocxBuilder(object):
@@ -24,16 +24,20 @@ class DocxBuilder(object):
 
     def _append_docx_elements(self, html_element, container):
         """
-        Retrieving and calling a creating function for
+        Retrieving and calling a creating object for
         the given HTML tag. Recursive call for all
         children of the element.
         """
-        append_call = get_append_call(html_element.tag)
+        dispatcher = get_tag_dispatcher(html_element.tag)
         # only call when a function is attached to tag
         new_container = container
-        if append_call:
-            new_container = append_call(html_element, container)
+        if dispatcher:
+            new_container = dispatcher.append_head(html_element, container)
 
         children = list(html_element)
         for child in children:
             self._append_docx_elements(child, new_container)
+
+        dispatcher = get_tag_dispatcher(html_element.getparent().tag)
+        if html_element.tail and dispatcher:
+            dispatcher.append_tail(html_element, container)
