@@ -114,12 +114,41 @@ Schema definitions
     </xsd:sequence>
   </xsd:complexType>
 
-  <xsd:attributeGroup name="AG_Blob">
-    <xsd:attribute ref="r:embed" use="optional" default=""/>
-    <xsd:attribute ref="r:link"  use="optional" default=""/>
-  </xsd:attributeGroup>
+  <xsd:complexType name="CT_PictureNonVisual">
+    <xsd:sequence>
+      <xsd:element name="cNvPr"    type="a:CT_NonVisualDrawingProps"/>
+      <xsd:element name="cNvPicPr" type="a:CT_NonVisualPictureProperties"/>
+    </xsd:sequence>
+  </xsd:complexType>
 
-  <xsd:complexType name="CT_Blip">
+  <xsd:complexType name="CT_BlipFillProperties">
+    <xsd:sequence>
+      <xsd:element name="blip"    type="CT_Blip"         minOccurs="0"/>
+      <xsd:element name="srcRect" type="CT_RelativeRect" minOccurs="0"/>
+      <xsd:choice minOccurs="0">
+        <xsd:element name="tile"    type="CT_TileInfoProperties"/>
+        <xsd:element name="stretch" type="CT_StretchInfoProperties"/>
+      </xsd:choice>
+    </xsd:sequence>
+    <xsd:attribute name="dpi"          type="xsd:unsignedInt"/>
+    <xsd:attribute name="rotWithShape" type="xsd:boolean"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="CT_ShapeProperties">
+    <xsd:sequence>
+      <xsd:element name="xfrm"    type="CT_Transform2D"            minOccurs="0"/>
+      <xsd:group   ref="EG_Geometry"                               minOccurs="0"/>
+      <xsd:group   ref="EG_FillProperties"                         minOccurs="0"/>
+      <xsd:element name="ln"      type="CT_LineProperties"         minOccurs="0"/>
+      <xsd:group   ref="EG_EffectProperties"                       minOccurs="0"/>
+      <xsd:element name="scene3d" type="CT_Scene3D"                minOccurs="0"/>
+      <xsd:element name="sp3d"    type="CT_Shape3D"                minOccurs="0"/>
+      <xsd:element name="extLst"  type="CT_OfficeArtExtensionList" minOccurs="0"/>
+    </xsd:sequence>
+    <xsd:attribute name="bwMode" type="ST_BlackWhiteMode"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="CT_Blip">  <!-- denormalized -->
     <xsd:sequence>
       <xsd:choice minOccurs="0" maxOccurs="unbounded">
         <xsd:element name="alphaBiLevel" type="CT_AlphaBiLevelEffect"/>
@@ -142,19 +171,14 @@ Schema definitions
       </xsd:choice>
       <xsd:element name="extLst" type="CT_OfficeArtExtensionList" minOccurs="0"/>
     </xsd:sequence>
-    <xsd:attributeGroup ref="AG_Blob"/>
-    <xsd:attribute name="cstate" type="ST_BlipCompression" use="optional" default="none"/>
+    <xsd:attribute  ref="r:embed" type="ST_RelationshipId"  default=""/>
+    <xsd:attribute  ref="r:link"  type="ST_RelationshipId"  default=""/>
+    <xsd:attribute name="cstate"  type="ST_BlipCompression" default="none"/>
   </xsd:complexType>
 
-  <xsd:complexType name="CT_BlipFillProperties">
-    <xsd:sequence>
-      <xsd:element name="blip"    type="CT_Blip"         minOccurs="0"/>
-      <xsd:element name="srcRect" type="CT_RelativeRect" minOccurs="0"/>
-      <xsd:group   ref="EG_FillModeProperties"           minOccurs="0"/>
-    </xsd:sequence>
-    <xsd:attribute name="dpi"          type="xsd:unsignedInt" use="optional"/>
-    <xsd:attribute name="rotWithShape" type="xsd:boolean"     use="optional"/>
-  </xsd:complexType>
+  <xsd:simpleType name="ST_RelationshipId">
+    <xsd:restriction base="xsd:string"/>
+  </xsd:simpleType>
 
   <xsd:complexType name="CT_NonVisualDrawingProps">
     <xsd:sequence>
@@ -164,9 +188,9 @@ Schema definitions
     </xsd:sequence>
     <xsd:attribute name="id"     type="ST_DrawingElementId" use="required"/>
     <xsd:attribute name="name"   type="xsd:string"          use="required"/>
-    <xsd:attribute name="descr"  type="xsd:string"          use="optional" default=""/>
-    <xsd:attribute name="hidden" type="xsd:boolean"         use="optional" default="false"/>
-    <xsd:attribute name="title"  type="xsd:string"          use="optional" default=""/>
+    <xsd:attribute name="descr"  type="xsd:string"          default=""/>
+    <xsd:attribute name="hidden" type="xsd:boolean"         default="false"/>
+    <xsd:attribute name="title"  type="xsd:string"          default=""/>
   </xsd:complexType>
 
   <xsd:complexType name="CT_NonVisualPictureProperties">
@@ -174,14 +198,7 @@ Schema definitions
       <xsd:element name="picLocks" type="CT_PictureLocking"         minOccurs="0"/>
       <xsd:element name="extLst"   type="CT_OfficeArtExtensionList" minOccurs="0"/>
     </xsd:sequence>
-    <xsd:attribute name="preferRelativeResize" type="xsd:boolean" use="optional" default="true"/>
-  </xsd:complexType>
-
-  <xsd:complexType name="CT_PictureNonVisual">
-    <xsd:sequence>
-      <xsd:element name="cNvPr"    type="a:CT_NonVisualDrawingProps"/>
-      <xsd:element name="cNvPicPr" type="a:CT_NonVisualPictureProperties"/>
-    </xsd:sequence>
+    <xsd:attribute name="preferRelativeResize" type="xsd:boolean" default="true"/>
   </xsd:complexType>
 
   <xsd:complexType name="CT_Point2D">
@@ -202,24 +219,10 @@ Schema definitions
   </xsd:complexType>
 
   <xsd:complexType name="CT_RelativeRect">
-    <xsd:attribute name="l" type="ST_Percentage" use="optional" default="0%"/>
-    <xsd:attribute name="t" type="ST_Percentage" use="optional" default="0%"/>
-    <xsd:attribute name="r" type="ST_Percentage" use="optional" default="0%"/>
-    <xsd:attribute name="b" type="ST_Percentage" use="optional" default="0%"/>
-  </xsd:complexType>
-
-  <xsd:complexType name="CT_ShapeProperties">
-    <xsd:sequence>
-      <xsd:element name="xfrm"    type="CT_Transform2D"            minOccurs="0"/>
-      <xsd:group   ref="EG_Geometry"                               minOccurs="0"/>
-      <xsd:group   ref="EG_FillProperties"                         minOccurs="0"/>
-      <xsd:element name="ln"      type="CT_LineProperties"         minOccurs="0"/>
-      <xsd:group   ref="EG_EffectProperties"                       minOccurs="0"/>
-      <xsd:element name="scene3d" type="CT_Scene3D"                minOccurs="0"/>
-      <xsd:element name="sp3d"    type="CT_Shape3D"                minOccurs="0"/>
-      <xsd:element name="extLst"  type="CT_OfficeArtExtensionList" minOccurs="0"/>
-    </xsd:sequence>
-    <xsd:attribute name="bwMode" type="ST_BlackWhiteMode" use="optional"/>
+    <xsd:attribute name="l" type="ST_Percentage" default="0%"/>
+    <xsd:attribute name="t" type="ST_Percentage" default="0%"/>
+    <xsd:attribute name="r" type="ST_Percentage" default="0%"/>
+    <xsd:attribute name="b" type="ST_Percentage" default="0%"/>
   </xsd:complexType>
 
   <xsd:complexType name="CT_StretchInfoProperties">
@@ -233,9 +236,9 @@ Schema definitions
       <xsd:element name="off" type="CT_Point2D"        minOccurs="0"/>
       <xsd:element name="ext" type="CT_PositiveSize2D" minOccurs="0"/>
     </xsd:sequence>
-    <xsd:attribute name="rot"   type="ST_Angle"    use="optional" default="0"/>
-    <xsd:attribute name="flipH" type="xsd:boolean" use="optional" default="false"/>
-    <xsd:attribute name="flipV" type="xsd:boolean" use="optional" default="false"/>
+    <xsd:attribute name="rot"   type="ST_Angle"    default="0"/>
+    <xsd:attribute name="flipH" type="xsd:boolean" default="false"/>
+    <xsd:attribute name="flipV" type="xsd:boolean" default="false"/>
   </xsd:complexType>
 
   <xsd:group name="EG_FillModeProperties">

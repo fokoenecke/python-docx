@@ -30,7 +30,7 @@ nsmap = {
 # functions
 # ===========================================================================
 
-def oxml_fromstring(text):
+def parse_xml(text):
     """
     ``etree.fromstring()`` replacement that uses oxml parser
     """
@@ -69,7 +69,7 @@ def serialize_for_reading(element):
 # Custom element classes
 # ===========================================================================
 
-class OxmlBaseElement(etree.ElementBase):
+class BaseOxmlElement(etree.ElementBase):
     """
     Base class for all custom element classes, to add standardized behavior
     to all classes in one place.
@@ -84,7 +84,7 @@ class OxmlBaseElement(etree.ElementBase):
         return serialize_for_reading(self)
 
 
-class CT_Default(OxmlBaseElement):
+class CT_Default(BaseOxmlElement):
     """
     ``<Default>`` element, specifying the default content type to be applied
     to a part with the specified extension.
@@ -112,13 +112,13 @@ class CT_Default(OxmlBaseElement):
         values.
         """
         xml = '<Default xmlns="%s"/>' % nsmap['ct']
-        default = oxml_fromstring(xml)
+        default = parse_xml(xml)
         default.set('Extension', ext)
         default.set('ContentType', content_type)
         return default
 
 
-class CT_Override(OxmlBaseElement):
+class CT_Override(BaseOxmlElement):
     """
     ``<Override>`` element, specifying the content type to be applied for a
     part with the specified partname.
@@ -138,7 +138,7 @@ class CT_Override(OxmlBaseElement):
         values.
         """
         xml = '<Override xmlns="%s"/>' % nsmap['ct']
-        override = oxml_fromstring(xml)
+        override = parse_xml(xml)
         override.set('PartName', partname)
         override.set('ContentType', content_type)
         return override
@@ -152,7 +152,7 @@ class CT_Override(OxmlBaseElement):
         return self.get('PartName')
 
 
-class CT_Relationship(OxmlBaseElement):
+class CT_Relationship(BaseOxmlElement):
     """
     ``<Relationship>`` element, representing a single relationship from a
     source to a target part.
@@ -163,7 +163,7 @@ class CT_Relationship(OxmlBaseElement):
         Return a new ``<Relationship>`` element.
         """
         xml = '<Relationship xmlns="%s"/>' % nsmap['pr']
-        relationship = oxml_fromstring(xml)
+        relationship = parse_xml(xml)
         relationship.set('Id', rId)
         relationship.set('Type', reltype)
         relationship.set('Target', target)
@@ -205,7 +205,7 @@ class CT_Relationship(OxmlBaseElement):
         return self.get('TargetMode', RTM.INTERNAL)
 
 
-class CT_Relationships(OxmlBaseElement):
+class CT_Relationships(BaseOxmlElement):
     """
     ``<Relationships>`` element, the root element in a .rels file.
     """
@@ -224,7 +224,7 @@ class CT_Relationships(OxmlBaseElement):
         Return a new ``<Relationships>`` element.
         """
         xml = '<Relationships xmlns="%s"/>' % nsmap['pr']
-        relationships = oxml_fromstring(xml)
+        relationships = parse_xml(xml)
         return relationships
 
     @property
@@ -243,7 +243,7 @@ class CT_Relationships(OxmlBaseElement):
         return serialize_part_xml(self)
 
 
-class CT_Types(OxmlBaseElement):
+class CT_Types(BaseOxmlElement):
     """
     ``<Types>`` element, the container element for Default and Override
     elements in [Content_Types].xml.
@@ -274,7 +274,7 @@ class CT_Types(OxmlBaseElement):
         Return a new ``<Types>`` element.
         """
         xml = '<Types xmlns="%s"/>' % nsmap['ct']
-        types = oxml_fromstring(xml)
+        types = parse_xml(xml)
         return types
 
     @property

@@ -4,23 +4,25 @@
 Custom element classes related to the styles part
 """
 
-from docx.oxml.shared import nsmap, OxmlBaseElement, qn
+from ..xmlchemy import BaseOxmlElement, ZeroOrMore, ZeroOrOne
 
 
-class CT_Style(OxmlBaseElement):
+class CT_Style(BaseOxmlElement):
     """
     A ``<w:style>`` element, representing a style definition
     """
-    @property
-    def pPr(self):
-        return self.find(qn('w:pPr'))
+    pPr = ZeroOrOne('w:pPr', successors=(
+        'w:rPr', 'w:tblPr', 'w:trPr', 'w:tcPr', 'w:tblStylePr'
+    ))
 
 
-class CT_Styles(OxmlBaseElement):
+class CT_Styles(BaseOxmlElement):
     """
     ``<w:styles>`` element, the root element of a styles part, i.e.
     styles.xml
     """
+    style = ZeroOrMore('w:style', successors=())
+
     def style_having_styleId(self, styleId):
         """
         Return the ``<w:style>`` child element having ``styleId`` attribute
@@ -28,13 +30,6 @@ class CT_Styles(OxmlBaseElement):
         """
         xpath = './w:style[@w:styleId="%s"]' % styleId
         try:
-            return self.xpath(xpath, namespaces=nsmap)[0]
+            return self.xpath(xpath)[0]
         except IndexError:
             raise KeyError('no <w:style> element with styleId %d' % styleId)
-
-    @property
-    def style_lst(self):
-        """
-        List of <w:style> child elements.
-        """
-        return self.findall(qn('w:style'))

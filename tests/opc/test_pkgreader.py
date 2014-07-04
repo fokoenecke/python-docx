@@ -8,8 +8,6 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import pytest
 
-from mock import call, Mock, patch
-
 from docx.opc.constants import (
     CONTENT_TYPE as CT, RELATIONSHIP_TARGET_MODE as RTM
 )
@@ -22,8 +20,8 @@ from docx.opc.pkgreader import (
 
 from .unitdata.types import a_Default, a_Types, an_Override
 from ..unitutil import (
-    initializer_mock, class_mock, function_mock, instance_mock, loose_mock,
-    method_mock
+    call, class_mock, function_mock, initializer_mock, instance_mock,
+    loose_mock, method_mock, Mock, patch
 )
 
 
@@ -435,8 +433,7 @@ class Describe_SerializedRelationship(object):
 
 class Describe_SerializedRelationships(object):
 
-    def it_can_load_from_xml(
-            self, oxml_fromstring_, _SerializedRelationship_):
+    def it_can_load_from_xml(self, parse_xml_, _SerializedRelationship_):
         # mockery ----------------------
         baseURI, rels_item_xml, rel_elm_1, rel_elm_2 = (
             Mock(name='baseURI'), Mock(name='rels_item_xml'),
@@ -445,7 +442,7 @@ class Describe_SerializedRelationships(object):
         rels_elm = Mock(
             name='rels_elm', Relationship_lst=[rel_elm_1, rel_elm_2]
         )
-        oxml_fromstring_.return_value = rels_elm
+        parse_xml_.return_value = rels_elm
         # exercise ---------------------
         srels = _SerializedRelationships.load_from_xml(
             baseURI, rels_item_xml)
@@ -454,7 +451,7 @@ class Describe_SerializedRelationships(object):
             call(baseURI, rel_elm_1),
             call(baseURI, rel_elm_2),
         ]
-        oxml_fromstring_.assert_called_once_with(rels_item_xml)
+        parse_xml_.assert_called_once_with(rels_item_xml)
         assert _SerializedRelationship_.call_args_list == expected_calls
         assert isinstance(srels, _SerializedRelationships)
 
@@ -470,8 +467,8 @@ class Describe_SerializedRelationships(object):
     # fixtures ---------------------------------------------
 
     @pytest.fixture
-    def oxml_fromstring_(self, request):
-        return function_mock(request, 'docx.opc.pkgreader.oxml_fromstring')
+    def parse_xml_(self, request):
+        return function_mock(request, 'docx.opc.pkgreader.parse_xml')
 
     @pytest.fixture
     def _SerializedRelationship_(self, request):

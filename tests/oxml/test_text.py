@@ -4,17 +4,12 @@
 Test suite for the docx.oxml.text module.
 """
 
-from docx.oxml.text import CT_P, CT_PPr, CT_R, CT_Text
+from docx.oxml.text import CT_R, CT_Text
 
 from .unitdata.text import a_p, a_pPr, a_pStyle, a_t, an_r
 
 
 class DescribeCT_P(object):
-
-    def it_can_construct_a_new_p_element(self):
-        p = CT_P.new()
-        expected_xml = a_p().with_nsdecls().xml()
-        assert p.xml == expected_xml
 
     def it_has_a_sequence_of_the_runs_it_contains(self):
         p = a_p().with_nsdecls().with_child(an_r()).with_child(an_r()).element
@@ -58,11 +53,6 @@ class DescribeCT_P(object):
 
 class DescribeCT_PPr(object):
 
-    def it_can_construct_a_new_pPr_element(self):
-        pPr = CT_PPr.new()
-        expected_xml = a_pPr().with_nsdecls().xml()
-        assert pPr.xml == expected_xml
-
     def it_knows_the_paragraph_style(self):
         cases = (
             (a_pPr(), None),
@@ -91,10 +81,6 @@ class DescribeCT_PPr(object):
 
 class DescribeCT_R(object):
 
-    def it_can_construct_a_new_r_element(self):
-        r = CT_R.new()
-        assert r.xml == an_r().with_nsdecls().xml()
-
     def it_can_add_a_t_to_itself(self):
         text = 'foobar'
         r = an_r().with_nsdecls().element
@@ -121,11 +107,3 @@ class DescribeCT_R(object):
             assert len(r.t_lst) == expected_len
             for t in r.t_lst:
                 assert isinstance(t, CT_Text)
-
-
-class DescribeCT_Text(object):
-
-    def it_can_construct_a_new_t_element(self):
-        text = 'foobar'
-        t = CT_Text.new(text)
-        assert t.xml == a_t().with_nsdecls().with_text(text).xml()

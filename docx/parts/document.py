@@ -8,10 +8,14 @@ from __future__ import (
     absolute_import, division, print_function, unicode_literals
 )
 
+from collections import Sequence
+
+from ..enum.section import WD_SECTION
 from ..opc.constants import RELATIONSHIP_TYPE as RT
 from ..opc.oxml import serialize_part_xml
 from ..opc.package import Part
-from ..oxml.shared import nsmap, oxml_fromstring
+from ..oxml import parse_xml
+from ..section import Section
 from ..shape import InlineShape
 from ..shared import lazyproperty, Parented
 from ..table import Table
@@ -33,6 +37,15 @@ class DocumentPart(Part):
         Return a paragraph newly added to the end of body content.
         """
         return self.body.add_paragraph()
+
+    def add_section(self, start_type=WD_SECTION.NEW_PAGE):
+        """
+        Return a |Section| object representing a new section added at the end
+        of the document.
+        """
+        new_sectPr = self._element.body.add_section_break()
+        new_sectPr.start_type = start_type
+        return Section(new_sectPr)
 
     def add_table(self, rows, cols):
         """
@@ -75,7 +88,7 @@ class DocumentPart(Part):
 
     @classmethod
     def load(cls, partname, content_type, blob, package):
-        document_elm = oxml_fromstring(blob)
+        document_elm = parse_xml(blob)
         document_part = cls(partname, content_type, document_elm, package)
         return document_part
 
@@ -109,6 +122,13 @@ class DocumentPart(Part):
         chain of delegation ends here for document child objects.
         """
         return self
+
+    @lazyproperty
+    def sections(self):
+        """
+        The |Sections| instance organizing the sections in this document.
+        """
+        return Sections(self._element)
 
     @property
     def tables(self):
@@ -213,4 +233,28 @@ class InlineShapes(Parented):
     def _inline_lst(self):
         body = self._body
         xpath = './w:p/w:r/w:drawing/wp:inline'
-        return body.xpath(xpath, namespaces=nsmap)
+        return body.xpath(xpath)
+
+
+class Sections(Sequence):
+    """
+    Sequence of |Section| objects corresponding to the sections in the
+    document. Supports ``len()``, iteration, and indexed access.
+    """
+    def __init__(self, document_elm):
+        super(Sections, self).__init__()
+        self._document_elm = document_elm
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            sectPr_lst = self._document_elm.sectPr_lst[key]
+            return [Section(sectPr) for sectPr in sectPr_lst]
+        sectPr = self._document_elm.sectPr_lst[key]
+        return Section(sectPr)
+
+    def __iter__(self):
+        for sectPr in self._document_elm.sectPr_lst:
+            yield Section(sectPr)
+
+    def __len__(self):
+        return len(self._document_elm.sectPr_lst)

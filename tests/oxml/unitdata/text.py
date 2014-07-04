@@ -14,6 +14,21 @@ class CT_BrBuilder(BaseBuilder):
     __attrs__ = ('w:type', 'w:clear')
 
 
+class CT_EmptyBuilder(BaseBuilder):
+    __nspfxs__ = ('w',)
+    __attrs__ = ()
+
+    def __init__(self, tag):
+        self.__tag__ = tag
+        super(CT_EmptyBuilder, self).__init__()
+
+
+class CT_JcBuilder(BaseBuilder):
+    __tag__ = 'w:jc'
+    __nspfxs__ = ('w',)
+    __attrs__ = ('w:val',)
+
+
 class CT_PBuilder(BaseBuilder):
     __tag__ = 'w:p'
     __nspfxs__ = ('w',)
@@ -54,7 +69,7 @@ class CT_TextBuilder(BaseBuilder):
         return self
 
 
-class CT_Underline(BaseBuilder):
+class CT_UnderlineBuilder(BaseBuilder):
     __tag__ = 'w:u'
     __nspfxs__ = ('w',)
     __attrs__ = (
@@ -78,12 +93,20 @@ def a_caps():
     return CT_OnOffBuilder('w:caps')
 
 
+def a_cr():
+    return CT_EmptyBuilder('w:cr')
+
+
 def a_cs():
     return CT_OnOffBuilder('w:cs')
 
 
 def a_dstrike():
     return CT_OnOffBuilder('w:dstrike')
+
+
+def a_jc():
+    return CT_JcBuilder()
 
 
 def a_noProof():
@@ -108,6 +131,10 @@ def a_specVanish():
 
 def a_strike():
     return CT_OnOffBuilder('w:strike')
+
+
+def a_tab():
+    return CT_EmptyBuilder('w:tab')
 
 
 def a_vanish():
@@ -139,7 +166,7 @@ def a_t():
 
 
 def a_u():
-    return CT_Underline()
+    return CT_UnderlineBuilder()
 
 
 def an_emboss():

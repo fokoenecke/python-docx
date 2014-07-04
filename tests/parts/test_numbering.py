@@ -39,14 +39,14 @@ class DescribeNumberingPart(object):
         assert part is numbering_part_
 
     def it_can_be_constructed_by_opc_part_factory(self, construct_fixture):
-        (partname_, content_type_, blob_, package_, oxml_fromstring_,
-         init__, numbering_elm_) = construct_fixture
+        (partname_, content_type_, blob_, package_, parse_xml_, init__,
+         numbering_elm_) = construct_fixture
         # exercise ---------------------
         numbering_part = NumberingPart.load(
             partname_, content_type_, blob_, package_
         )
         # verify -----------------------
-        oxml_fromstring_.assert_called_once_with(blob_)
+        parse_xml_.assert_called_once_with(blob_)
         init__.assert_called_once_with(
             partname_, content_type_, numbering_elm_, package_
         )
@@ -63,25 +63,13 @@ class DescribeNumberingPart(object):
     # fixtures -------------------------------------------------------
 
     @pytest.fixture
-    def blob_(self, request):
-        return instance_mock(request, bytes)
-
-    @pytest.fixture
     def construct_fixture(
-            self, partname_, content_type_, blob_, package_,
-            oxml_fromstring_, init__, numbering_elm_):
+            self, partname_, content_type_, blob_, package_, parse_xml_,
+            init__, numbering_elm_):
         return (
-            partname_, content_type_, blob_, package_, oxml_fromstring_,
-            init__, numbering_elm_
+            partname_, content_type_, blob_, package_, parse_xml_, init__,
+            numbering_elm_
         )
-
-    @pytest.fixture
-    def content_type_(self, request):
-        return instance_mock(request, str)
-
-    @pytest.fixture
-    def init__(self, request):
-        return initializer_mock(request, NumberingPart)
 
     @pytest.fixture
     def load_fixture(
@@ -93,13 +81,6 @@ class DescribeNumberingPart(object):
         )
 
     @pytest.fixture
-    def _NumberingDefinitions_(self, request, numbering_definitions_):
-        return class_mock(
-            request, 'docx.parts.numbering._NumberingDefinitions',
-            return_value=numbering_definitions_
-        )
-
-    @pytest.fixture
     def num_defs_fixture(
             self, _NumberingDefinitions_, numbering_elm_,
             numbering_definitions_):
@@ -107,6 +88,27 @@ class DescribeNumberingPart(object):
         return (
             numbering_part, _NumberingDefinitions_, numbering_elm_,
             numbering_definitions_
+        )
+
+    # fixture components ---------------------------------------------
+
+    @pytest.fixture
+    def blob_(self, request):
+        return instance_mock(request, bytes)
+
+    @pytest.fixture
+    def content_type_(self, request):
+        return instance_mock(request, str)
+
+    @pytest.fixture
+    def init__(self, request):
+        return initializer_mock(request, NumberingPart)
+
+    @pytest.fixture
+    def _NumberingDefinitions_(self, request, numbering_definitions_):
+        return class_mock(
+            request, 'docx.parts.numbering._NumberingDefinitions',
+            return_value=numbering_definitions_
         )
 
     @pytest.fixture
@@ -126,9 +128,9 @@ class DescribeNumberingPart(object):
         return method_mock(request, NumberingPart, 'load')
 
     @pytest.fixture
-    def oxml_fromstring_(self, request, numbering_elm_):
+    def parse_xml_(self, request, numbering_elm_):
         return function_mock(
-            request, 'docx.parts.numbering.oxml_fromstring',
+            request, 'docx.parts.numbering.parse_xml',
             return_value=numbering_elm_
         )
 

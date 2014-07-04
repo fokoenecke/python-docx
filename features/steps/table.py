@@ -56,6 +56,17 @@ def given_a_table(context):
     context.table_ = Document().add_table(rows=2, cols=2)
 
 
+@given('a table column having a width of {width_desc}')
+def given_a_table_having_a_width_of_width_desc(context, width_desc):
+    col_idx = {
+        'no explicit setting': 0,
+        '1440':                1,
+    }[width_desc]
+    docx_path = test_docx('tbl-col-props')
+    document = Document(docx_path)
+    context.column = document.tables[0].columns[col_idx]
+
+
 @given('a table having an applied style')
 def given_a_table_having_an_applied_style(context):
     docx_path = test_docx('tbl-having-applied-style')
@@ -111,6 +122,12 @@ def when_add_row_to_table(context):
 def when_apply_style_to_table(context):
     table = context.table_
     table.style = 'LightShading-Accent1'
+
+
+@when('I set the column width to {width_emu}')
+def when_I_set_the_column_width_to_width_emu(context, width_emu):
+    new_value = None if width_emu == 'None' else int(width_emu)
+    context.column.width = new_value
 
 
 # then =====================================================
@@ -265,6 +282,14 @@ def then_new_column_has_2_cells(context):
 @then('the new row has 2 cells')
 def then_new_row_has_2_cells(context):
     assert len(context.row.cells) == 2
+
+
+@then('the reported column width is {width_emu}')
+def then_the_reported_column_width_is_width_emu(context, width_emu):
+    expected_value = None if width_emu == 'None' else int(width_emu)
+    assert context.column.width == expected_value, (
+        'got %s' % context.column.width
+    )
 
 
 @then('the table style matches the name I applied')

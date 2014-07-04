@@ -10,6 +10,7 @@ from __future__ import absolute_import, division, print_function
 
 import os
 
+from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_BREAK
 from docx.opc.constants import CONTENT_TYPE as CT, RELATIONSHIP_TYPE as RT
 from docx.package import Package
@@ -63,15 +64,18 @@ class Document(object):
     def add_paragraph(self, text='', style=None):
         """
         Return a paragraph newly added to the end of the document, populated
-        with *text* and having paragraph style *style*.
+        with *text* and having paragraph style *style*. *text* can contain
+        tab (``\\t``) characters, which are converted to the appropriate XML
+        form for a tab. *text* can also include newline (``\\n``) or carriage
+        return (``\\r``) characters, each of which is converted to a line
+        break.
         """
-        p = self._document_part.add_paragraph()
+        paragraph = self._document_part.add_paragraph()
         if text:
-            r = p.add_run()
-            r.add_text(text)
+            paragraph.add_run(text)
         if style is not None:
-            p.style = style
-        return p
+            paragraph.style = style
+        return paragraph
 
     def add_picture(self, image_path_or_stream, width=None, height=None):
         """
@@ -100,6 +104,15 @@ class Document(object):
             picture.height = height
 
         return picture
+
+    def add_section(self, start_type=WD_SECTION.NEW_PAGE):
+        """
+        Return a |Section| object representing a new section added at the end
+        of the document. The optional *start_type* argument must be a member
+        of the :ref:`WdSectionStart` enumeration defaulting to
+        ``WD_SECTION.NEW_PAGE`` if not provided.
+        """
+        return self._document_part.add_section(start_type)
 
     def add_table(self, rows, cols, style='LightShading-Accent1'):
         """
@@ -154,6 +167,13 @@ class Document(object):
         a filesystem location (a string) or a file-like object.
         """
         self._package.save(path_or_stream)
+
+    @property
+    def sections(self):
+        """
+        Return a reference to the |Sections| instance for this document.
+        """
+        return self._document_part.sections
 
     @lazyproperty
     def styles_part(self):

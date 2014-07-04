@@ -6,7 +6,7 @@ Text-related proxy types for python-docx, such as Paragraph and Run.
 
 from __future__ import absolute_import, print_function, unicode_literals
 
-from docx.enum.text import WD_BREAK
+from docx.enum.text import WD_BREAK, WD_UNDERLINE
 
 
 def boolproperty(f):
@@ -20,12 +20,12 @@ def boolproperty(f):
         return getattr(parent, attr_name)
 
     def _remove_prop(parent, attr_name):
-        remove_method_name = 'remove_%s' % attr_name
+        remove_method_name = '_remove_%s' % attr_name
         remove_method = getattr(parent, remove_method_name)
         remove_method()
 
     def _add_prop(parent, attr_name):
-        add_method_name = 'add_%s' % attr_name
+        add_method_name = '_add_%s' % attr_name
         add_method = getattr(parent, add_method_name)
         return add_method()
 
@@ -61,15 +61,57 @@ class Paragraph(object):
     def add_run(self, text=None, style=None):
         """
         Append a run to this paragraph containing *text* and having character
-        style identified by style ID *style*.
+        style identified by style ID *style*. *text* can contain tab
+        (``\\t``) characters, which are converted to the appropriate XML form
+        for a tab. *text* can also include newline (``\\n``) or carriage
+        return (``\\r``) characters, each of which is converted to a line
+        break.
         """
         r = self._p.add_r()
         run = Run(r)
         if text:
-            run.add_text(text)
+            run.text = text
         if style:
             run.style = style
         return run
+
+    @property
+    def alignment(self):
+        """
+        A member of the :ref:`WdParagraphAlignment` enumeration specifying
+        the justification setting for this paragraph. A value of |None|
+        indicates the paragraph has no directly-applied alignment value and
+        will inherit its alignment value from its style hierarchy. Assigning
+        |None| to this property removes any directly-applied alignment value.
+        """
+        return self._p.alignment
+
+    @alignment.setter
+    def alignment(self, value):
+        self._p.alignment = value
+
+    def clear(self):
+        """
+        Return this same paragraph after removing all its content.
+        Paragraph-level formatting, such as style, is preserved.
+        """
+        self._p.clear_content()
+        return self
+
+    def insert_paragraph_before(self, text=None, style=None):
+        """
+        Return a newly created paragraph, inserted directly before this
+        paragraph. If *text* is supplied, the new paragraph contains that
+        text in a single run. If *style* is provided, that style is assigned
+        to the new paragraph.
+        """
+        p = self._p.add_p_before()
+        paragraph = Paragraph(p)
+        if text:
+            paragraph.add_run(text)
+        if style is not None:
+            paragraph.style = style
+        return paragraph
 
     @property
     def runs(self):
@@ -94,13 +136,26 @@ class Paragraph(object):
     @property
     def text(self):
         """
-        A string formed by concatenating the text of each run in the
-        paragraph.
+        String formed by concatenating the text of each run in the paragraph.
+        Tabs and line breaks in the XML are mapped to ``\\t`` and ``\\n``
+        characters respectively.
+
+        Assigning text to this property causes all existing paragraph content
+        to be replaced with a single run containing the assigned text.
+        A ``\\t`` character in the text is mapped to a ``<w:tab/>`` element
+        and each ``\\n`` or ``\\r`` character is mapped to a line break.
+        Paragraph-level formatting, such as style, is preserved. All
+        run-level formatting, such as bold or italic, is removed.
         """
         text = ''
         for run in self.runs:
             text += run.text
         return text
+
+    @text.setter
+    def text(self, text):
+        self.clear()
+        self.add_run(text)
 
 
 class Run(object):
@@ -136,9 +191,19 @@ class Run(object):
         if clear is not None:
             br.clear = clear
 
+    def add_tab(self):
+        """
+        Add a ``<w:tab/>`` element at the end of the run, which Word
+        interprets as a tab character.
+        """
+        self._r._add_tab()
+
     def add_text(self, text):
         """
-        Add a text element to this run.
+        Returns a newly appended |Text| object (corresponding to a new
+        ``<w:t>`` child element) to the run, containing *text*. Compare with
+        the possibly more friendly approach of assigning text to the
+        :attr:`Run.text` property.
         """
         t = self._r.add_t(text)
         return Text(t)
@@ -156,6 +221,14 @@ class Run(object):
         Read/write. Causes the text of the run to appear in bold.
         """
         return 'b'
+
+    def clear(self):
+        """
+        Return reference to this run after removing all its content. All run
+        formatting is preserved.
+        """
+        self._r.clear_content()
+        return self
 
     @boolproperty
     def complex_script(self):
@@ -321,31 +394,47 @@ class Run(object):
     @property
     def text(self):
         """
-        A string formed by concatenating all the <w:t> elements present in
-        this run.
+        String formed by concatenating the text equivalent of each run
+        content child element into a Python string. Each ``<w:t>`` element
+        adds the text characters it contains. A ``<w:tab/>`` element adds
+        a ``\\t`` character. A ``<w:cr/>`` or ``<w:br>`` element each add
+        a ``\\n`` character. Note that a ``<w:br>`` element can indicate
+        a page break or column break as well as a line break. All ``<w:br>``
+        elements translate to a single ``\\n`` character regardless of their
+        type. All other content child elements, such as ``<w:drawing>``, are
+        ignored.
+
+        Assigning text to this property has the reverse effect, translating
+        each ``\\t`` character to a ``<w:tab/>`` element and each ``\\n`` or
+        ``\\r`` character to a ``<w:cr/>`` element. Any existing run content
+        is replaced. Run formatting is preserved.
         """
-        text = ''
-        for t in self._r.t_lst:
-            text += t.text
-        return text
+        return self._r.text
+
+    @text.setter
+    def text(self, text):
+        self._r.text = text
 
     @property
     def underline(self):
         """
         The underline style for this |Run|, one of |None|, |True|, |False|,
-        or a value from ``pptx.enum.text.WD_UNDERLINE``. A value of |None|
-        indicates the run has no directly-applied underline value and so will
-        inherit the underline value of its containing paragraph. Assigning
-        |None| to this property removes any directly-applied underline value.
-        A value of |False| indicates a directly-applied setting of no
-        underline, overriding any inherited value. A value of |True|
-        indicates single underline. The values from ``WD_UNDERLINE`` are used
-        to specify other outline styles such as double, wavy, and dotted.
+        or a value from :ref:`WdUnderline`. A value of |None| indicates the
+        run has no directly-applied underline value and so will inherit the
+        underline value of its containing paragraph. Assigning |None| to this
+        property removes any directly-applied underline value. A value of
+        |False| indicates a directly-applied setting of no underline,
+        overriding any inherited value. A value of |True| indicates single
+        underline. The values from :ref:`WdUnderline` are used to specify
+        other outline styles such as double, wavy, and dotted.
         """
         return self._r.underline
 
     @underline.setter
     def underline(self, value):
+        if not WD_UNDERLINE.is_valid_setting(value):
+            tmpl = "'%s' is not a valid setting for Run.underline"
+            raise ValueError(tmpl % value)
         self._r.underline = value
 
     @boolproperty

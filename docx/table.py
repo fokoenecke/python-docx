@@ -112,7 +112,7 @@ class _Cell(object):
         tc.clear_content()
         p = tc.add_p()
         r = p.add_r()
-        r.add_t(text)
+        r.text = text
 
 
 class _Column(object):
@@ -131,6 +131,18 @@ class _Column(object):
         Supports ``len()``, iteration and indexed access.
         """
         return _ColumnCells(self._tbl, self._gridCol)
+
+    @property
+    def width(self):
+        """
+        The width of this column in EMU, or |None| if no explicit width is
+        set.
+        """
+        return self._gridCol.w
+
+    @width.setter
+    def width(self, value):
+        self._gridCol.w = value
 
 
 class _ColumnCells(object):

@@ -2,6 +2,7 @@
 Table
 =====
 
+... column width is stored in twips (20ths of a point) ...
 
 MS API
 ------
@@ -104,32 +105,32 @@ Schema Definitions
 
   <xsd:complexType name="CT_Tbl">
     <xsd:sequence>
-      <xsd:group   ref="EG_RangeMarkupElements" minOccurs="0" maxOccurs="unbounded"/>
-      <xsd:element name="tblPr"   type="CT_TblPr"/>
-      <xsd:element name="tblGrid" type="CT_TblGrid"/>
-      <xsd:group   ref="EG_ContentRowContent" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:group    ref="EG_RangeMarkupElements" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="tblPr"                  type="CT_TblPr"/>
+      <xsd:element name="tblGrid"                type="CT_TblGrid"/>
+      <xsd:group    ref="EG_ContentRowContent"   minOccurs="0" maxOccurs="unbounded"/>
     </xsd:sequence>
   </xsd:complexType>
 
   <xsd:complexType name="CT_TblPr">  <!-- denormalized -->
     <xsd:sequence>
       <xsd:element name="tblStyle"            type="CT_String"        minOccurs="0"/>
-      <xsd:element name="tblpPr"              type="CT_TblPPr"        minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblOverlap"          type="CT_TblOverlap"    minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="bidiVisual"          type="CT_OnOff"         minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblStyleRowBandSize" type="CT_DecimalNumber" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblStyleColBandSize" type="CT_DecimalNumber" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblW"                type="CT_TblWidth"      minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="jc"                  type="CT_JcTable"       minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblCellSpacing"      type="CT_TblWidth"      minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblInd"              type="CT_TblWidth"      minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblBorders"          type="CT_TblBorders"    minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="shd"                 type="CT_Shd"           minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblLayout"           type="CT_TblLayoutType" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblCellMar"          type="CT_TblCellMar"    minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblLook"             type="CT_TblLook"       minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblCaption"          type="CT_String"        minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tblDescription"      type="CT_String"        minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="tblpPr"              type="CT_TblPPr"        minOccurs="0"/>
+      <xsd:element name="tblOverlap"          type="CT_TblOverlap"    minOccurs="0"/>
+      <xsd:element name="bidiVisual"          type="CT_OnOff"         minOccurs="0"/>
+      <xsd:element name="tblStyleRowBandSize" type="CT_DecimalNumber" minOccurs="0"/>
+      <xsd:element name="tblStyleColBandSize" type="CT_DecimalNumber" minOccurs="0"/>
+      <xsd:element name="tblW"                type="CT_TblWidth"      minOccurs="0"/>
+      <xsd:element name="jc"                  type="CT_JcTable"       minOccurs="0"/>
+      <xsd:element name="tblCellSpacing"      type="CT_TblWidth"      minOccurs="0"/>
+      <xsd:element name="tblInd"              type="CT_TblWidth"      minOccurs="0"/>
+      <xsd:element name="tblBorders"          type="CT_TblBorders"    minOccurs="0"/>
+      <xsd:element name="shd"                 type="CT_Shd"           minOccurs="0"/>
+      <xsd:element name="tblLayout"           type="CT_TblLayoutType" minOccurs="0"/>
+      <xsd:element name="tblCellMar"          type="CT_TblCellMar"    minOccurs="0"/>
+      <xsd:element name="tblLook"             type="CT_TblLook"       minOccurs="0"/>
+      <xsd:element name="tblCaption"          type="CT_String"        minOccurs="0"/>
+      <xsd:element name="tblDescription"      type="CT_String"        minOccurs="0"/>
       <xsd:element name="tblPrChange"         type="CT_TblPrChange"   minOccurs="0"/>
     </xsd:sequence>
 
@@ -137,6 +138,39 @@ Schema Definitions
     <xsd:attribute name="w"    type="ST_MeasurementOrPercent"/>
     <xsd:attribute name="type" type="ST_TblWidth"/>
   </xsd:complexType>
+
+  <xsd:simpleType name="ST_MeasurementOrPercent">
+    <xsd:union memberTypes="ST_DecimalNumberOrPercent s:ST_UniversalMeasure"/>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_DecimalNumberOrPercent">
+    <xsd:union memberTypes="ST_UnqualifiedPercentage s:ST_Percentage"/>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_UniversalMeasure">
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="-?[0-9]+(\.[0-9]+)?(mm|cm|in|pt|pc|pi)"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_UnqualifiedPercentage">
+    <xsd:restriction base="xsd:integer"/>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_Percentage">
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="-?[0-9]+(\.[0-9]+)?%"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_TblWidth">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="nil"/>
+      <xsd:enumeration value="pct"/>
+      <xsd:enumeration value="dxa"/>
+      <xsd:enumeration value="auto"/>
+    </xsd:restriction>
+  </xsd:simpleType>
 
   <xsd:complexType name="CT_TblLook">
     <xsd:attribute name="firstRow"    type="s:ST_OnOff"/>
@@ -159,6 +193,20 @@ Schema Definitions
     <xsd:attribute name="w" type="s:ST_TwipsMeasure"/>
   </xsd:complexType>
 
+  <xsd:simpleType name="ST_TwipsMeasure">
+    <xsd:union memberTypes="ST_UnsignedDecimalNumber ST_PositiveUniversalMeasure"/>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_UnsignedDecimalNumber">
+    <xsd:restriction base="xsd:unsignedLong"/>
+  </xsd:simpleType>
+
+  <xsd:simpleType name="ST_PositiveUniversalMeasure">
+    <xsd:restriction base="ST_UniversalMeasure">
+      <xsd:pattern value="[0-9]+(\.[0-9]+)?(mm|cm|in|pt|pc|pi)"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+
   <xsd:group name="EG_ContentRowContent">
     <xsd:choice>
       <xsd:element name="tr"        type="CT_Row"          minOccurs="0" maxOccurs="unbounded"/>
@@ -170,8 +218,8 @@ Schema Definitions
 
   <xsd:complexType name="CT_Row">
     <xsd:sequence>
-      <xsd:element name="tblPrEx" type="CT_TblPrEx" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="trPr"    type="CT_TrPr"    minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="tblPrEx" type="CT_TblPrEx" minOccurs="0"/>
+      <xsd:element name="trPr"    type="CT_TrPr"    minOccurs="0"/>
       <xsd:group   ref="EG_ContentCellContent"      minOccurs="0" maxOccurs="unbounded"/>
     </xsd:sequence>
     <xsd:attribute name="rsidRPr" type="ST_LongHexNumber"/>
@@ -191,7 +239,7 @@ Schema Definitions
 
   <xsd:complexType name="CT_Tc">
     <xsd:sequence>
-      <xsd:element name="tcPr" type="CT_TcPr" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="tcPr" type="CT_TcPr" minOccurs="0"/>
       <xsd:group   ref="EG_BlockLevelElts"    minOccurs="1" maxOccurs="unbounded"/>
     </xsd:sequence>
     <xsd:attribute name="id" type="s:ST_String" use="optional"/>
@@ -222,66 +270,24 @@ Schema Definitions
 
   <xsd:complexType name="CT_TcPr">  <!-- denormalized -->
     <xsd:sequence>
-      <xsd:element name="cnfStyle" type="CT_Cnf" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tcW" type="CT_TblWidth" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="gridSpan" type="CT_DecimalNumber" minOccurs="0"/>
-      <xsd:element name="hMerge" type="CT_HMerge" minOccurs="0"/>
-      <xsd:element name="vMerge" type="CT_VMerge" minOccurs="0"/>
-      <xsd:element name="tcBorders" type="CT_TcBorders" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="shd" type="CT_Shd" minOccurs="0"/>
-      <xsd:element name="noWrap" type="CT_OnOff" minOccurs="0"/>
-      <xsd:element name="tcMar" type="CT_TcMar" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="textDirection" type="CT_TextDirection" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tcFitText" type="CT_OnOff" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="vAlign" type="CT_VerticalJc" minOccurs="0"/>
-      <xsd:element name="hideMark" type="CT_OnOff" minOccurs="0"/>
-      <xsd:element name="headers" type="CT_Headers" minOccurs="0"/>
-      <xsd:group ref="EG_CellMarkupElements" minOccurs="0" maxOccurs="1"/>
-      <xsd:element name="tcPrChange" type="CT_TcPrChange" minOccurs="0"/>
+      <xsd:element name="cnfStyle"             type="CT_Cnf"           minOccurs="0"/>
+      <xsd:element name="tcW"                  type="CT_TblWidth"      minOccurs="0"/>
+      <xsd:element name="gridSpan"             type="CT_DecimalNumber" minOccurs="0"/>
+      <xsd:element name="hMerge"               type="CT_HMerge"        minOccurs="0"/>
+      <xsd:element name="vMerge"               type="CT_VMerge"        minOccurs="0"/>
+      <xsd:element name="tcBorders"            type="CT_TcBorders"     minOccurs="0"/>
+      <xsd:element name="shd"                  type="CT_Shd"           minOccurs="0"/>
+      <xsd:element name="noWrap"               type="CT_OnOff"         minOccurs="0"/>
+      <xsd:element name="tcMar"                type="CT_TcMar"         minOccurs="0"/>
+      <xsd:element name="textDirection"        type="CT_TextDirection" minOccurs="0"/>
+      <xsd:element name="tcFitText"            type="CT_OnOff"         minOccurs="0"/>
+      <xsd:element name="vAlign"               type="CT_VerticalJc"    minOccurs="0"/>
+      <xsd:element name="hideMark"             type="CT_OnOff"         minOccurs="0"/>
+      <xsd:element name="headers"              type="CT_Headers"       minOccurs="0"/>
+      <xsd:group   ref="EG_CellMarkupElements"                         minOccurs="0"/>
+      <xsd:element name="tcPrChange"           type="CT_TcPrChange"    minOccurs="0"/>
     </xsd:sequence>
   </xsd:complexType>
-
-::
-
-    w_CT_Tc =
-      attribute w:id { s_ST_String }?,
-      element tcPr { w_CT_TcPr }?,
-      w_EG_BlockLevelElts+
-
-    w_EG_BlockLevelElts =  # denormalized
-      element customXml { w_CT_CustomXmlBlock }
-      | element p { w_CT_P }
-      | element sdt { w_CT_SdtBlock }
-      | element tbl { w_CT_Tbl }
-      | element altChunk { w_CT_AltChunk }
-
-      | element proofErr { w_CT_ProofErr }
-      | element permStart { w_CT_PermStart }
-      | element permEnd { w_CT_Perm }
-      | element ins { w_CT_RunTrackChange }
-      | element del { w_CT_RunTrackChange }
-      | element moveFrom { w_CT_RunTrackChange }
-      | element moveTo { w_CT_RunTrackChange }
-
-      | element bookmarkStart { w_CT_Bookmark }
-      | element bookmarkEnd { w_CT_MarkupRange }
-      | element moveFromRangeStart { w_CT_MoveBookmark }
-      | element moveFromRangeEnd { w_CT_MarkupRange }
-      | element moveToRangeStart { w_CT_MoveBookmark }
-      | element moveToRangeEnd { w_CT_MarkupRange }
-      | element commentRangeStart { w_CT_MarkupRange }
-      | element commentRangeEnd { w_CT_MarkupRange }
-      | element customXmlInsRangeStart { w_CT_TrackChange }
-      | element customXmlInsRangeEnd { w_CT_Markup }
-      | element customXmlDelRangeStart { w_CT_TrackChange }
-      | element customXmlDelRangeEnd { w_CT_Markup }
-      | element customXmlMoveFromRangeStart { w_CT_TrackChange }
-      | element customXmlMoveFromRangeEnd { w_CT_Markup }
-      | element customXmlMoveToRangeStart { w_CT_TrackChange }
-      | element customXmlMoveToRangeEnd { w_CT_Markup }
-
-      | element oMathPara { m_CT_OMathPara }
-      | element oMath { m_CT_OMath }
 
 
 Resources

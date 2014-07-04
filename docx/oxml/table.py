@@ -6,58 +6,32 @@ Custom element classes for tables
 
 from __future__ import absolute_import, print_function, unicode_literals
 
-from docx.oxml.shared import OxmlBaseElement, OxmlElement, qn
+from . import parse_xml
+from .ns import nsdecls
+from .simpletypes import ST_TwipsMeasure
+from .xmlchemy import (
+    BaseOxmlElement, OneAndOnlyOne, OneOrMore, OptionalAttribute, ZeroOrOne,
+    ZeroOrMore
+)
 
-from .exceptions import ValidationError
-from .shared import CT_String
-from .text import CT_P
 
-
-class CT_Row(OxmlBaseElement):
+class CT_Row(BaseOxmlElement):
     """
     ``<w:tr>`` element
     """
-    def add_tc(self):
-        """
-        Return a new <w:tc> element that has been added at the end of any
-        existing tc elements.
-        """
-        tc = CT_Tc.new()
-        return self._append_tc(tc)
+    tc = ZeroOrMore('w:tc')
 
-    @classmethod
-    def new(cls):
-        """
-        Return a new ``<w:tr>`` element.
-        """
-        return OxmlElement('w:tr')
-
-    @property
-    def tc_lst(self):
-        """
-        Sequence containing the ``<w:tc>`` child elements in this ``<w:tr>``.
-        """
-        return self.findall(qn('w:tc'))
-
-    def _append_tc(self, tc):
-        """
-        Return *tc* after appending it to end of tc sequence.
-        """
-        self.append(tc)
-        return tc
+    def _new_tc(self):
+        return CT_Tc.new()
 
 
-class CT_Tbl(OxmlBaseElement):
+class CT_Tbl(BaseOxmlElement):
     """
     ``<w:tbl>`` element
     """
-    def add_tr(self):
-        """
-        Return a new <w:tr> element that has been added at the end of any
-        existing tr elements.
-        """
-        tr = CT_Row.new()
-        return self._append_tr(tr)
+    tblPr = OneAndOnlyOne('w:tblPr')
+    tblGrid = OneAndOnlyOne('w:tblGrid')
+    tr = ZeroOrMore('w:tr')
 
     @classmethod
     def new(cls):
@@ -65,161 +39,75 @@ class CT_Tbl(OxmlBaseElement):
         Return a new ``<w:tbl>`` element, containing the required
         ``<w:tblPr>`` and ``<w:tblGrid>`` child elements.
         """
-        tbl = OxmlElement('w:tbl')
-        tblPr = CT_TblPr.new()
-        tbl.append(tblPr)
-        tblGrid = CT_TblGrid.new()
-        tbl.append(tblGrid)
+        tbl = parse_xml(cls._tbl_xml())
         return tbl
 
-    @property
-    def tblGrid(self):
-        tblGrid = self.find(qn('w:tblGrid'))
-        if tblGrid is None:
-            raise ValidationError('required w:tblGrid child not found')
-        return tblGrid
-
-    @property
-    def tblPr(self):
-        tblPr = self.find(qn('w:tblPr'))
-        if tblPr is None:
-            raise ValidationError('required w:tblPr child not found')
-        return tblPr
-
-    @property
-    def tr_lst(self):
-        """
-        Sequence containing the ``<w:tr>`` child elements in this
-        ``<w:tbl>``.
-        """
-        return self.findall(qn('w:tr'))
-
-    def _append_tr(self, tr):
-        """
-        Return *tr* after appending it to end of tr sequence.
-        """
-        self.append(tr)
-        return tr
+    @classmethod
+    def _tbl_xml(cls):
+        return (
+            '<w:tbl %s>\n'
+            '  <w:tblPr>\n'
+            '    <w:tblW w:type="auto" w:w="0"/>\n'
+            '  </w:tblPr>\n'
+            '  <w:tblGrid/>\n'
+            '</w:tbl>' % nsdecls('w')
+        )
 
 
-class CT_TblGrid(OxmlBaseElement):
+class CT_TblGrid(BaseOxmlElement):
     """
     ``<w:tblGrid>`` element, child of ``<w:tbl>``, holds ``<w:gridCol>``
     elements that define column count, width, etc.
     """
-    def add_gridCol(self):
-        """
-        Return a new <w:gridCol> element that has been added at the end of
-        any existing gridCol elements.
-        """
-        gridCol = CT_TblGridCol.new()
-        return self._append_gridCol(gridCol)
-
-    @property
-    def gridCol_lst(self):
-        """
-        Sequence containing the ``<w:gridCol>`` child elements in this
-        ``<w:tblGrid>``.
-        """
-        return self.findall(qn('w:gridCol'))
-
-    @classmethod
-    def new(cls):
-        """
-        Return a new ``<w:tblGrid>`` element.
-        """
-        return OxmlElement('w:tblGrid')
-
-    def _append_gridCol(self, gridCol):
-        """
-        Return *gridCol* after appending it to end of gridCol sequence.
-        """
-        successor = self.first_child_found_in('w:tblGridChange')
-        if successor is not None:
-            successor.addprevious(gridCol)
-        else:
-            self.append(gridCol)
-        return gridCol
-
-    def first_child_found_in(self, *tagnames):
-        """
-        Return the first child found with tag in *tagnames*, or None if
-        not found.
-        """
-        for tagname in tagnames:
-            child = self.find(qn(tagname))
-            if child is not None:
-                return child
-        return None
+    gridCol = ZeroOrMore('w:gridCol', successors=('w:tblGridChange',))
 
 
-class CT_TblGridCol(OxmlBaseElement):
+class CT_TblGridCol(BaseOxmlElement):
     """
     ``<w:gridCol>`` element, child of ``<w:tblGrid>``, defines a table
     column.
     """
-    @classmethod
-    def new(cls):
-        """
-        Return a new ``<w:gridCol>`` element.
-        """
-        return OxmlElement('w:gridCol')
+    w = OptionalAttribute('w:w', ST_TwipsMeasure)
 
 
-class CT_TblPr(OxmlBaseElement):
+class CT_TblPr(BaseOxmlElement):
     """
     ``<w:tblPr>`` element, child of ``<w:tbl>``, holds child elements that
     define table properties such as style and borders.
     """
+    tblStyle = ZeroOrOne('w:tblStyle')
+
     def add_tblStyle(self, style_name):
         """
-        Return a new <w:tblStyle> element newly inserted in sequence among
-        the existing child elements, respecting the schema definition.
+        Return a new <w:tblStyle> element having its style set to
+        *style_name*.
         """
-        tblStyle = CT_String.new('w:tblStyle', style_name)
-        return self._insert_tblStyle(tblStyle)
-
-    @classmethod
-    def new(cls):
-        """
-        Return a new ``<w:tblPr>`` element.
-        """
-        return OxmlElement('w:tblPr')
-
-    @property
-    def tblStyle(self):
-        """
-        Optional <w:tblStyle> child element, or |None| if not present.
-        """
-        return self.find(qn('w:tblStyle'))
-
-    def _insert_tblStyle(self, tblStyle):
-        """
-        Return *tblStyle* after inserting it in sequence among the existing
-        child elements. Assumes no ``<w:tblStyle>`` element is present.
-        """
-        assert self.tblStyle is None
-        self.insert(0, tblStyle)
-        return tblStyle
+        return self._add_tblStyle(val=style_name)
 
 
-class CT_Tc(OxmlBaseElement):
+class CT_Tc(BaseOxmlElement):
     """
     ``<w:tc>`` table cell element
     """
-    def add_p(self):
+    tcPr = ZeroOrOne('w:tcPr')  # bunches of successors, overriding insert
+    p = OneOrMore('w:p')
+
+    def _insert_tcPr(self, tcPr):
         """
-        Return a new <w:p> element that has been added at the end of any
-        existing cell content.
+        ``tcPr`` has a bunch of successors, but it comes first if it appears,
+        so just overriding and using insert(0, ...) rather than spelling out
+        successors.
         """
-        p = CT_P.new()
-        self.append(p)
-        return p
+        self.insert(0, tcPr)
+        return tcPr
 
     def clear_content(self):
         """
         Remove all content child elements, preserving the ``<w:tcPr>``
-        element if present.
+        element if present. Note that this leaves the ``<w:tc>`` element in
+        an invalid state because it doesn't contain at least one block-level
+        element. It's up to the caller to add a ``<w:p>`` or ``<w:tbl>``
+        child element.
         """
         new_children = []
         tcPr = self.tcPr
@@ -233,21 +121,8 @@ class CT_Tc(OxmlBaseElement):
         Return a new ``<w:tc>`` element, containing an empty paragraph as the
         required EG_BlockLevelElt.
         """
-        tc = OxmlElement('w:tc')
-        p = CT_P.new()
-        tc.append(p)
-        return tc
-
-    @property
-    def p_lst(self):
-        """
-        List of <w:p> child elements.
-        """
-        return self.findall(qn('w:p'))
-
-    @property
-    def tcPr(self):
-        """
-        <w:tcPr> child element or |None| if not present.
-        """
-        return self.find(qn('w:tcPr'))
+        return parse_xml(
+            '<w:tc %s>\n'
+            '  <w:p/>\n'
+            '</w:tc>' % nsdecls('w')
+        )

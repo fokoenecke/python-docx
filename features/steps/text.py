@@ -10,9 +10,11 @@ from behave import given, then, when
 
 from docx import Document
 from docx.enum.text import WD_BREAK, WD_UNDERLINE
-from docx.oxml.shared import qn
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls, qn
+from docx.text import Run
 
-from .helpers import test_docx, test_text
+from helpers import test_docx, test_text
 
 
 # given ===================================================
@@ -28,6 +30,34 @@ def given_a_run_having_bool_prop_set_on(context, bool_prop_name):
     run = Document().add_paragraph().add_run()
     setattr(run, bool_prop_name, True)
     context.run = run
+
+
+@given('a run having known text and formatting')
+def given_a_run_having_known_text_and_formatting(context):
+    run = Document().add_paragraph().add_run('foobar')
+    run.bold = True
+    run.italic = True
+    context.run = run
+
+
+@given('a run having mixed text content')
+def given_a_run_having_mixed_text_content(context):
+    """
+    Mixed here meaning it contains ``<w:tab/>``, ``<w:cr/>``, etc. elements.
+    """
+    r_xml = """\
+        <w:r %s>
+          <w:t>abc</w:t>
+          <w:tab/>
+          <w:t>def</w:t>
+          <w:cr/>
+          <w:t>ghi</w:t>
+          <w:drawing/>
+          <w:br/>
+          <w:t>jkl</w:t>
+        </w:r>""" % nsdecls('w')
+    r = parse_xml(r_xml)
+    context.run = Run(r)
 
 
 @given('a run having {underline_type} underline')
@@ -78,11 +108,31 @@ def when_I_add_a_run_specifying_the_character_style_Emphasis(context):
     context.run = context.paragraph.add_run(test_text, 'Emphasis')
 
 
+@when('I add a tab')
+def when_I_add_a_tab(context):
+    context.run.add_tab()
+
+
+@when('I add text to the run')
+def when_I_add_text_to_the_run(context):
+    context.run.add_text(test_text)
+
+
+@when('I assign mixed text to the text property')
+def when_I_assign_mixed_text_to_the_text_property(context):
+    context.run.text = 'abc\tdef\nghi\rjkl'
+
+
 @when('I assign {value_str} to its {bool_prop_name} property')
 def when_assign_true_to_bool_run_prop(context, value_str, bool_prop_name):
     value = {'True': True, 'False': False, 'None': None}[value_str]
     run = context.run
     setattr(run, bool_prop_name, value)
+
+
+@when('I clear the run')
+def when_I_clear_the_run(context):
+    context.run.clear()
 
 
 @when('I set the character style of the run to {char_style}')
@@ -151,9 +201,20 @@ def then_run_appears_without_bool_prop(context, boolean_prop_name):
     assert getattr(run, boolean_prop_name) is False
 
 
+@then('the run contains no text')
+def then_the_run_contains_no_text(context):
+    assert context.run.text == ''
+
+
 @then('the run contains the text I specified')
 def then_the_run_contains_the_text_I_specified(context):
     assert context.run.text == test_text
+
+
+@then('the run formatting is preserved')
+def then_the_run_formatting_is_preserved(context):
+    assert context.run.bold is True
+    assert context.run.italic is True
 
 
 @then('the run underline property value is {underline_value}')
@@ -171,3 +232,17 @@ def then_the_style_of_the_run_is_char_style(context, char_style):
         'None': None, 'Emphasis': 'Emphasis', 'Strong': 'Strong'
     }[char_style]
     assert context.run.style == expected_value
+
+
+@then('the tab appears at the end of the run')
+def then_the_tab_appears_at_the_end_of_the_run(context):
+    r = context.run._r
+    tab = r.find(qn('w:tab'))
+    assert tab is not None
+
+
+@then('the text of the run represents the textual run content')
+def then_the_text_of_the_run_represents_the_textual_run_content(context):
+    assert context.run.text == 'abc\tdef\nghi\njkl', (
+        'got \'%s\'' % context.run.text
+    )

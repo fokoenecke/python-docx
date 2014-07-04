@@ -8,16 +8,16 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import pytest
 
-from mock import Mock
-
 from docx.opc.constants import CONTENT_TYPE as CT, RELATIONSHIP_TYPE as RT
 from docx.opc.package import PartFactory
 from docx.opc.packuri import PackURI
 from docx.oxml.parts.document import CT_Body, CT_Document
+from docx.oxml.section import CT_SectPr
 from docx.oxml.text import CT_R
 from docx.package import ImageParts, Package
-from docx.parts.document import _Body, DocumentPart, InlineShapes
+from docx.parts.document import _Body, DocumentPart, InlineShapes, Sections
 from docx.parts.image import ImagePart
+from docx.section import Section
 from docx.shape import InlineShape
 from docx.table import Table
 from docx.text import Paragraph
@@ -25,12 +25,12 @@ from docx.text import Paragraph
 from ..oxml.unitdata.dml import a_drawing, an_inline
 from ..oxml.parts.unitdata.document import a_body, a_document
 from ..oxml.unitdata.table import (
-    a_gridCol, a_tbl, a_tblGrid, a_tblPr, a_tc, a_tr
+    a_gridCol, a_tbl, a_tblGrid, a_tblPr, a_tblW, a_tc, a_tr
 )
-from ..oxml.unitdata.text import a_p, a_sectPr, an_r
+from ..oxml.unitdata.text import a_p, a_pPr, a_sectPr, an_r
 from ..unitutil import (
     function_mock, class_mock, initializer_mock, instance_mock, loose_mock,
-    method_mock, property_mock
+    method_mock, Mock, property_mock
 )
 
 
@@ -52,19 +52,18 @@ class DescribeDocumentPart(object):
         )
         assert part is document_part_
 
-    def it_can_be_constructed_by_opc_part_factory(
-            self, oxml_fromstring_, init):
+    def it_can_be_constructed_by_opc_part_factory(self, parse_xml_, init):
         # mockery ----------------------
         partname, content_type, blob, document_elm, package = (
             Mock(name='partname'), Mock(name='content_type'),
             Mock(name='blob'), Mock(name='document_elm'),
             Mock(name='package')
         )
-        oxml_fromstring_.return_value = document_elm
+        parse_xml_.return_value = document_elm
         # exercise ---------------------
         doc = DocumentPart.load(partname, content_type, blob, package)
         # verify -----------------------
-        oxml_fromstring_.assert_called_once_with(blob)
+        parse_xml_.assert_called_once_with(blob)
         init.assert_called_once_with(
             partname, content_type, document_elm, package
         )
@@ -75,6 +74,15 @@ class DescribeDocumentPart(object):
         p = document_part.add_paragraph()
         body_.add_paragraph.assert_called_once_with()
         assert p is p_
+
+    def it_can_add_a_section(self, add_section_fixture):
+        (document_part, start_type_, body_elm_, new_sectPr_, Section_,
+         section_) = add_section_fixture
+        section = document_part.add_section(start_type_)
+        body_elm_.add_section_break.assert_called_once_with()
+        assert new_sectPr_.start_type == start_type_
+        Section_.assert_called_once_with(new_sectPr_)
+        assert section is section_
 
     def it_can_add_a_table(self, add_table_fixture):
         document_part, rows, cols, body_, table_ = add_table_fixture
@@ -114,6 +122,12 @@ class DescribeDocumentPart(object):
         paragraphs = document_part.paragraphs
         assert paragraphs is paragraphs_
 
+    def it_provides_access_to_the_document_sections(self, sections_fixture):
+        document, document_elm, Sections_ = sections_fixture
+        sections = document.sections
+        Sections_.assert_called_once_with(document_elm)
+        assert sections is Sections_.return_value
+
     def it_provides_access_to_the_document_tables(self, tables_fixture):
         document_part, tables_ = tables_fixture
         tables = document_part.tables
@@ -141,33 +155,20 @@ class DescribeDocumentPart(object):
         return document_part, body_, p_
 
     @pytest.fixture
+    def add_section_fixture(
+            self, document_elm_, start_type_, body_elm_, sectPr_, Section_,
+            section_):
+        document_part = DocumentPart(None, None, document_elm_, None)
+        return (
+            document_part, start_type_, body_elm_, sectPr_, Section_,
+            section_
+        )
+
+    @pytest.fixture
     def add_table_fixture(self, document_part_body_, body_, table_):
         document_part = DocumentPart(None, None, None, None)
         rows, cols = 2, 4
         return document_part, rows, cols, body_, table_
-
-    @pytest.fixture
-    def _Body_(self, request):
-        return class_mock(request, 'docx.parts.document._Body')
-
-    @pytest.fixture
-    def body_(self, request, p_, table_):
-        body_ = instance_mock(request, _Body)
-        body_.add_paragraph.return_value = p_
-        body_.add_table.return_value = table_
-        return body_
-
-    @pytest.fixture
-    def blob_(self, request):
-        return instance_mock(request, str)
-
-    @pytest.fixture
-    def content_type_(self, request):
-        return instance_mock(request, str)
-
-    @pytest.fixture
-    def document(self):
-        return DocumentPart(None, None, None, None)
 
     @pytest.fixture
     def document_blob_fixture(self, request, serialize_part_xml_):
@@ -184,6 +185,83 @@ class DescribeDocumentPart(object):
         body_elm = document_elm[0]
         document = DocumentPart(None, None, document_elm, None)
         return document, _Body_, body_elm
+
+    @pytest.fixture
+    def inline_shapes_fixture(self, request, InlineShapes_):
+        document_elm = (
+            a_document().with_nsdecls().with_child(
+                a_body())
+        ).element
+        body_elm = document_elm[0]
+        document = DocumentPart(None, None, document_elm, None)
+        return document, InlineShapes_, body_elm
+
+    @pytest.fixture(params=[
+        ((), 1), ((1,), 2), ((2,), 1), ((1, 2, 3), 4), ((1, 2, 4), 3),
+        ((0, 0), 1), ((0, 0, 1, 3), 2), (('foo', 1, 2), 3), ((1, 'bar'), 2)
+    ])
+    def next_id_fixture(self, request):
+        existing_ids, expected_id = request.param
+        document_elm = a_document().with_nsdecls().element
+        for n in existing_ids:
+            p = a_p().with_nsdecls().element
+            p.set('id', str(n))
+            document_elm.append(p)
+        document = DocumentPart(None, None, document_elm, None)
+        return document, expected_id
+
+    @pytest.fixture
+    def paragraphs_fixture(self, document_part_body_, body_, paragraphs_):
+        document_part = DocumentPart(None, None, None, None)
+        body_.paragraphs = paragraphs_
+        return document_part, paragraphs_
+
+    @pytest.fixture
+    def sections_fixture(self, request, Sections_):
+        document_elm = a_document().with_nsdecls().element
+        document = DocumentPart(None, None, document_elm, None)
+        return document, document_elm, Sections_
+
+    @pytest.fixture
+    def tables_fixture(self, document_part_body_, body_, tables_):
+        document_part = DocumentPart(None, None, None, None)
+        body_.tables = tables_
+        return document_part, tables_
+
+    # fixture components ---------------------------------------------
+
+    @pytest.fixture
+    def _Body_(self, request):
+        return class_mock(request, 'docx.parts.document._Body')
+
+    @pytest.fixture
+    def body_(self, request, p_, table_):
+        body_ = instance_mock(request, _Body)
+        body_.add_paragraph.return_value = p_
+        body_.add_table.return_value = table_
+        return body_
+
+    @pytest.fixture
+    def body_elm_(self, request, sectPr_):
+        body_elm_ = instance_mock(request, CT_Body)
+        body_elm_.add_section_break.return_value = sectPr_
+        return body_elm_
+
+    @pytest.fixture
+    def blob_(self, request):
+        return instance_mock(request, str)
+
+    @pytest.fixture
+    def content_type_(self, request):
+        return instance_mock(request, str)
+
+    @pytest.fixture
+    def document(self):
+        return DocumentPart(None, None, None, None)
+
+    @pytest.fixture
+    def document_elm_(self, request, body_elm_):
+        return instance_mock(request, CT_Document, body=body_elm_)
 
     @pytest.fixture
     def document_part_(self, request):
@@ -233,32 +311,8 @@ class DescribeDocumentPart(object):
         return class_mock(request, 'docx.parts.document.InlineShapes')
 
     @pytest.fixture
-    def inline_shapes_fixture(self, request, InlineShapes_):
-        document_elm = (
-            a_document().with_nsdecls().with_child(
-                a_body())
-        ).element
-        body_elm = document_elm[0]
-        document = DocumentPart(None, None, document_elm, None)
-        return document, InlineShapes_, body_elm
-
-    @pytest.fixture(params=[
-        ((), 1), ((1,), 2), ((2,), 1), ((1, 2, 3), 4), ((1, 2, 4), 3),
-        ((0, 0), 1), ((0, 0, 1, 3), 2), (('foo', 1, 2), 3), ((1, 'bar'), 2)
-    ])
-    def next_id_fixture(self, request):
-        existing_ids, expected_id = request.param
-        document_elm = a_document().with_nsdecls().element
-        for n in existing_ids:
-            p = a_p().with_nsdecls().element
-            p.set('id', str(n))
-            document_elm.append(p)
-        document = DocumentPart(None, None, document_elm, None)
-        return document, expected_id
-
-    @pytest.fixture
-    def oxml_fromstring_(self, request):
-        return function_mock(request, 'docx.parts.document.oxml_fromstring')
+    def parse_xml_(self, request):
+        return function_mock(request, 'docx.parts.document.parse_xml')
 
     @pytest.fixture
     def p_(self, request):
@@ -271,12 +325,6 @@ class DescribeDocumentPart(object):
     @pytest.fixture
     def paragraphs_(self, request):
         return instance_mock(request, list)
-
-    @pytest.fixture
-    def paragraphs_fixture(self, document_part_body_, body_, paragraphs_):
-        document_part = DocumentPart(None, None, None, None)
-        body_.paragraphs = paragraphs_
-        return document_part, paragraphs_
 
     @pytest.fixture
     def part_load_fixture(
@@ -302,10 +350,32 @@ class DescribeDocumentPart(object):
         return instance_mock(request, str)
 
     @pytest.fixture
+    def Section_(self, request, section_):
+        return class_mock(
+            request, 'docx.parts.document.Section', return_value=section_
+        )
+
+    @pytest.fixture
+    def section_(self, request):
+        return instance_mock(request, Section)
+
+    @pytest.fixture
+    def Sections_(self, request):
+        return class_mock(request, 'docx.parts.document.Sections')
+
+    @pytest.fixture
+    def sectPr_(self, request):
+        return instance_mock(request, CT_SectPr)
+
+    @pytest.fixture
     def serialize_part_xml_(self, request):
         return function_mock(
             request, 'docx.parts.document.serialize_part_xml'
         )
+
+    @pytest.fixture
+    def start_type_(self, request):
+        return instance_mock(request, int)
 
     @pytest.fixture
     def table_(self, request):
@@ -314,12 +384,6 @@ class DescribeDocumentPart(object):
     @pytest.fixture
     def tables_(self, request):
         return instance_mock(request, list)
-
-    @pytest.fixture
-    def tables_fixture(self, document_part_body_, body_, tables_):
-        document_part = DocumentPart(None, None, None, None)
-        body_.tables = tables_
-        return document_part, tables_
 
 
 class Describe_Body(object):
@@ -438,7 +502,10 @@ class Describe_Body(object):
         return body_bldr
 
     def _tbl_bldr(self, rows=1, cols=1):
-        tblPr_bldr = a_tblPr()
+        tblPr_bldr = (
+            a_tblPr().with_child(
+                a_tblW().with_type("auto").with_w(0))
+        )
 
         tblGrid_bldr = a_tblGrid()
         for i in range(cols):
@@ -599,3 +666,55 @@ class DescribeInlineShapes(object):
     @pytest.fixture
     def shape_id_(self, request):
         return instance_mock(request, int)
+
+
+class DescribeSections(object):
+
+    def it_knows_how_many_sections_it_contains(self, len_fixture):
+        sections, expected_len = len_fixture
+        print(sections._document_elm.xml)
+        assert len(sections) == expected_len
+
+    def it_can_iterate_over_its_Section_instances(self, iter_fixture):
+        sections, expected_count = iter_fixture
+        section_count = 0
+        for section in sections:
+            section_count += 1
+            assert isinstance(section, Section)
+        assert section_count == expected_count
+
+    def it_can_access_its_Section_instances_by_index(self, index_fixture):
+        sections, indicies = index_fixture
+        assert len(sections[0:2]) == 2
+        for index in indicies:
+            assert isinstance(sections[index], Section)
+
+    # fixtures -------------------------------------------------------
+
+    @pytest.fixture
+    def index_fixture(self, document_elm):
+        sections = Sections(document_elm)
+        return sections, [0, 1]
+
+    @pytest.fixture
+    def iter_fixture(self, document_elm):
+        sections = Sections(document_elm)
+        return sections, 2
+
+    @pytest.fixture
+    def len_fixture(self, document_elm):
+        sections = Sections(document_elm)
+        return sections, 2
+
+    # fixture components ---------------------------------------------
+
+    @pytest.fixture
+    def document_elm(self):
+        return (
+            a_document().with_nsdecls().with_child(
+                a_body().with_child(
+                    a_p().with_child(
+                        a_pPr().with_child(
+                            a_sectPr()))).with_child(
+                    a_sectPr()))
+        ).element

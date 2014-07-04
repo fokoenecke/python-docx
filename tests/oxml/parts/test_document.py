@@ -4,33 +4,16 @@
 Test suite for the docx.oxml.parts module.
 """
 
-from docx.oxml.parts.document import CT_Body
-from docx.oxml.text import CT_P
+from __future__ import absolute_import, print_function, unicode_literals
 
-from .unitdata.document import a_body, a_document
-from ..unitdata.text import a_p, a_sectPr
+import pytest
+
+from .unitdata.document import a_body
+from ..unitdata.section import a_type
+from ..unitdata.text import a_p, a_pPr, a_sectPr
 
 
 class DescribeCT_Body(object):
-
-    def it_can_add_a_p_to_itself(self):
-        """
-        Return a newly created |CT_P| element that has been added after any
-        existing content.
-        """
-        cases = (
-            (a_body().with_nsdecls(),
-             a_body().with_nsdecls().with_child(a_p())),
-            (a_body().with_nsdecls().with_child(a_sectPr()),
-             a_body().with_nsdecls().with_child(a_p()).with_child(a_sectPr())),
-        )
-        for before_body_bldr, after_body_bldr in cases:
-            body = before_body_bldr.element
-            # exercise -----------------
-            p = body.add_p()
-            # verify -------------------
-            assert body.xml == after_body_bldr.xml()
-            assert isinstance(p, CT_P)
 
     def it_can_clear_all_the_content_it_holds(self):
         """
@@ -53,9 +36,28 @@ class DescribeCT_Body(object):
             # verify -------------------
             assert body.xml == after_body_bldr.xml()
 
+    def it_can_add_a_section_break(self, section_break_fixture):
+        body, expected_xml = section_break_fixture
+        sectPr = body.add_section_break()
+        assert body.xml == expected_xml
+        assert sectPr is body.get_or_add_sectPr()
 
-class DescribeCT_Document(object):
+    # fixtures -------------------------------------------------------
 
-    def it_holds_a_body_element(self):
-        document = a_document().with_nsdecls().with_child(a_body()).element
-        assert isinstance(document.body, CT_Body)
+    @pytest.fixture
+    def section_break_fixture(self):
+        body = (
+            a_body().with_nsdecls().with_child(
+                a_sectPr().with_child(
+                    a_type().with_val('foobar')))
+        ).element
+        expected_xml = (
+            a_body().with_nsdecls().with_child(
+                a_p().with_child(
+                    a_pPr().with_child(
+                        a_sectPr().with_child(
+                            a_type().with_val('foobar'))))).with_child(
+                a_sectPr().with_child(
+                    a_type().with_val('foobar')))
+        ).xml()
+        return body, expected_xml
