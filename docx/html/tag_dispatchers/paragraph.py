@@ -20,10 +20,14 @@ class ParagraphDispatcher(TagDispatcher):
         """
         <p> creates a paragraph element inside a docx container element.
         """
+        text = replace_whitespaces(text)
+        if not text:
+            return container
+
         style = 'Normal'
         if element.getparent().tag == 'blockquote':
             style = 'IntenseQuote'
-        text = replace_whitespaces(text)
+
         if isinstance(container, Paragraph):
             container.add_run(text=text, style=style)
             return container

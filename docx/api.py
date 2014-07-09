@@ -129,9 +129,8 @@ class Document(object):
     def add_html_content(cls, container, html):
         """
         Convert a given html string to according docx elements
-        and append them at the end of this document.
+        and append them at the end of a given container.
         """
-
         add_html(container, html)
 
     @property
