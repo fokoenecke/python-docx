@@ -9,7 +9,7 @@ from lxml.html import fromstring
 from docx.html.converter import DocxBuilder
 
 
-def add_html(document, html_string):
+def add_html(container, html_string):
     root = fromstring(html_string)
-    builder = DocxBuilder(document=document)
+    builder = DocxBuilder(container=container)
     builder.from_html_tree(root=root)

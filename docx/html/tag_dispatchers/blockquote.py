@@ -1,6 +1,5 @@
 # encoding: utf-8
 from docx.html.tag_dispatchers import TagDispatcher, replace_whitespaces
-from docx.text import Paragraph
 
 
 class BlockquoteDispatcher(TagDispatcher):

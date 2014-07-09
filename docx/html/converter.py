@@ -10,17 +10,17 @@ from docx.html.dispatcher import get_tag_dispatcher
 
 class DocxBuilder(object):
     """
-    Taking the document our html should be appended to
+    Taking the root container our html should be appended to
     """
-    def __init__(self, document):
+    def __init__(self, container):
         super(DocxBuilder, self).__init__()
-        self._document = document
+        self._root_container = container
 
     def from_html_tree(self, root):
         """
         Appending all the HTML elements, beginning at root object
         """
-        self._append_docx_elements(root, self._document)
+        self._append_docx_elements(root, self._root_container)
 
     def _append_docx_elements(self, html_element, container):
         """

@@ -5,6 +5,7 @@ The |Table| object and related proxy classes.
 """
 
 from __future__ import absolute_import, print_function, unicode_literals
+from docx.shared import Cm
 
 from .shared import lazyproperty, write_only_property
 from .text import Paragraph
@@ -26,6 +27,8 @@ class Table(object):
         gridCol = tblGrid.add_gridCol()
         for tr in self._tbl.tr_lst:
             tr.add_tc()
+
+        gridCol.w = Cm(4)
         return _Column(gridCol, self._tbl)
 
     def add_row(self):

@@ -12,12 +12,12 @@ import os
 
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_BREAK
+from docx.html import add_html
 from docx.opc.constants import CONTENT_TYPE as CT, RELATIONSHIP_TYPE as RT
 from docx.package import Package
 from docx.parts.numbering import NumberingPart
 from docx.parts.styles import StylesPart
 from docx.shared import lazyproperty
-from docx.html import add_html
 
 
 _thisdir = os.path.split(__file__)[0]
@@ -125,12 +125,14 @@ class Document(object):
             table.style = style
         return table
 
-    def add_html_content(self, html):
+    @classmethod
+    def add_html_content(cls, container, html):
         """
         Convert a given html string to according docx elements
         and append them at the end of this document.
         """
-        add_html(self, html)
+
+        add_html(container, html)
 
     @property
     def inline_shapes(self):
