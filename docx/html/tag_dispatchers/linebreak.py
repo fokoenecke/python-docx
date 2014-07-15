@@ -21,7 +21,7 @@ class LineBreakDispatcher(TagDispatcher):
         <br> Creates a break item inside the given container.
         """
         element.tail = replace_whitespaces(element.tail)
-        element.tail = element.tail.strip()
+        element.tail = element.tail.lstrip()
 
         run = container.add_run()
         run.add_break(break_type=WD_BREAK.LINE_CLEAR_RIGHT)

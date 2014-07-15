@@ -33,6 +33,7 @@ class ListDispatcher(TagDispatcher):
         text = '' if text == ' ' else text
 
         if isinstance(container, Paragraph):
-            container.add_run(text=text, style=style)
+            container.style = style
+            container.add_run(text=text)
             return container
         return container.add_paragraph(text=text, style=style)
