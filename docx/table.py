@@ -7,16 +7,16 @@ The |Table| object and related proxy classes.
 from __future__ import absolute_import, print_function, unicode_literals
 from docx.shared import Cm
 
-from .shared import lazyproperty, write_only_property
+from .shared import lazyproperty, Parented, write_only_property
 from .text import Paragraph
 
 
-class Table(object):
+class Table(Parented):
     """
     Proxy class for a WordprocessingML ``<w:tbl>`` element.
     """
-    def __init__(self, tbl):
-        super(Table, self).__init__()
+    def __init__(self, tbl, parent):
+        super(Table, self).__init__(parent)
         self._tbl = tbl
 
     def add_column(self):
@@ -27,9 +27,7 @@ class Table(object):
         gridCol = tblGrid.add_gridCol()
         for tr in self._tbl.tr_lst:
             tr.add_tc()
-
-        gridCol.w = Cm(4)
-        return _Column(gridCol, self._tbl)
+        return _Column(gridCol, self._tbl, self)
 
     def add_row(self):
         """
@@ -39,7 +37,21 @@ class Table(object):
         tr = tbl.add_tr()
         for gridCol in tbl.tblGrid.gridCol_lst:
             tr.add_tc()
-        return _Row(tr)
+        return _Row(tr, self)
+
+    @property
+    def autofit(self):
+        """
+        |True| if column widths can be automatically adjusted to improve the
+        fit of cell contents. |False| if table layout is fixed. Column widths
+        are adjusted in either case if total column width exceeds page width.
+        Read/write boolean.
+        """
+        return self._tblPr.autofit
+
+    @autofit.setter
+    def autofit(self, value):
+        self._tblPr.autofit = value
 
     def cell(self, row_idx, col_idx):
         """
@@ -54,14 +66,14 @@ class Table(object):
         """
         |_Columns| instance containing the sequence of rows in this table.
         """
-        return _Columns(self._tbl)
+        return _Columns(self._tbl, self)
 
     @lazyproperty
     def rows(self):
         """
         |_Rows| instance containing the sequence of rows in this table.
         """
-        return _Rows(self._tbl)
+        return _Rows(self._tbl, self)
 
     @property
     def style(self):
@@ -70,30 +82,23 @@ class Table(object):
         'LightShading-Accent1'. Name is derived by removing spaces from the
         table style name displayed in the Word UI.
         """
-        tblStyle = self._tblPr.tblStyle
-        if tblStyle is None:
-            return None
-        return tblStyle.val
+        return self._tblPr.style
 
     @style.setter
-    def style(self, style_name):
-        tblStyle = self._tblPr.tblStyle
-        if tblStyle is None:
-            self._tblPr.add_tblStyle(style_name)
-        else:
-            tblStyle.val = style_name
+    def style(self, value):
+        self._tblPr.style = value
 
     @property
     def _tblPr(self):
         return self._tbl.tblPr
 
 
-class _Cell(object):
+class _Cell(Parented):
     """
     Table cell
     """
-    def __init__(self, tc):
-        super(_Cell, self).__init__()
+    def __init__(self, tc, parent):
+        super(_Cell, self).__init__(parent)
         self._tc = tc
 
     @property
@@ -103,7 +108,7 @@ class _Cell(object):
         at least one block-level element. By default this is a single
         paragraph.
         """
-        return [Paragraph(p) for p in self._tc.p_lst]
+        return [Paragraph(p, self) for p in self._tc.p_lst]
 
     @write_only_property
     def text(self, text):
@@ -117,13 +122,24 @@ class _Cell(object):
         r = p.add_r()
         r.text = text
 
+    @property
+    def width(self):
+        """
+        The width of this cell in EMU, or |None| if no explicit width is set.
+        """
+        return self._tc.width
 
-class _Column(object):
+    @width.setter
+    def width(self, value):
+        self._tc.width = value
+
+
+class _Column(Parented):
     """
     Table column
     """
-    def __init__(self, gridCol, tbl):
-        super(_Column, self).__init__()
+    def __init__(self, gridCol, tbl, parent):
+        super(_Column, self).__init__(parent)
         self._gridCol = gridCol
         self._tbl = tbl
 
@@ -133,7 +149,7 @@ class _Column(object):
         Sequence of |_Cell| instances corresponding to cells in this column.
         Supports ``len()``, iteration and indexed access.
         """
-        return _ColumnCells(self._tbl, self._gridCol)
+        return _ColumnCells(self._tbl, self._gridCol, self)
 
     @property
     def width(self):
@@ -148,13 +164,13 @@ class _Column(object):
         self._gridCol.w = value
 
 
-class _ColumnCells(object):
+class _ColumnCells(Parented):
     """
     Sequence of |_Cell| instances corresponding to the cells in a table
     column.
     """
-    def __init__(self, tbl, gridCol):
-        super(_ColumnCells, self).__init__()
+    def __init__(self, tbl, gridCol, parent):
+        super(_ColumnCells, self).__init__(parent)
         self._tbl = tbl
         self._gridCol = gridCol
 
@@ -168,12 +184,12 @@ class _ColumnCells(object):
             msg = "cell index [%d] is out of range" % idx
             raise IndexError(msg)
         tc = tr.tc_lst[self._col_idx]
-        return _Cell(tc)
+        return _Cell(tc, self)
 
     def __iter__(self):
         for tr in self._tr_lst:
             tc = tr.tc_lst[self._col_idx]
-            yield _Cell(tc)
+            yield _Cell(tc, self)
 
     def __len__(self):
         return len(self._tr_lst)
@@ -188,13 +204,13 @@ class _ColumnCells(object):
         return self._tbl.tr_lst
 
 
-class _Columns(object):
+class _Columns(Parented):
     """
     Sequence of |_Column| instances corresponding to the columns in a table.
     Supports ``len()``, iteration and indexed access.
     """
-    def __init__(self, tbl):
-        super(_Columns, self).__init__()
+    def __init__(self, tbl, parent):
+        super(_Columns, self).__init__(parent)
         self._tbl = tbl
 
     def __getitem__(self, idx):
@@ -206,10 +222,11 @@ class _Columns(object):
         except IndexError:
             msg = "column index [%d] is out of range" % idx
             raise IndexError(msg)
-        return _Column(gridCol, self._tbl)
+        return _Column(gridCol, self._tbl, self)
 
     def __iter__(self):
-        return (_Column(gridCol, self._tbl) for gridCol in self._gridCol_lst)
+        for gridCol in self._gridCol_lst:
+            yield _Column(gridCol, self._tbl, self)
 
     def __len__(self):
         return len(self._gridCol_lst)
@@ -224,12 +241,12 @@ class _Columns(object):
         return tblGrid.gridCol_lst
 
 
-class _Row(object):
+class _Row(Parented):
     """
     Table row
     """
-    def __init__(self, tr):
-        super(_Row, self).__init__()
+    def __init__(self, tr, parent):
+        super(_Row, self).__init__(parent)
         self._tr = tr
 
     @lazyproperty
@@ -238,15 +255,15 @@ class _Row(object):
         Sequence of |_Cell| instances corresponding to cells in this row.
         Supports ``len()``, iteration and indexed access.
         """
-        return _RowCells(self._tr)
+        return _RowCells(self._tr, self)
 
 
-class _RowCells(object):
+class _RowCells(Parented):
     """
     Sequence of |_Cell| instances corresponding to the cells in a table row.
     """
-    def __init__(self, tr):
-        super(_RowCells, self).__init__()
+    def __init__(self, tr, parent):
+        super(_RowCells, self).__init__(parent)
         self._tr = tr
 
     def __getitem__(self, idx):
@@ -258,22 +275,22 @@ class _RowCells(object):
         except IndexError:
             msg = "cell index [%d] is out of range" % idx
             raise IndexError(msg)
-        return _Cell(tc)
+        return _Cell(tc, self)
 
     def __iter__(self):
-        return (_Cell(tc) for tc in self._tr.tc_lst)
+        return (_Cell(tc, self) for tc in self._tr.tc_lst)
 
     def __len__(self):
         return len(self._tr.tc_lst)
 
 
-class _Rows(object):
+class _Rows(Parented):
     """
     Sequence of |_Row| instances corresponding to the rows in a table.
     Supports ``len()``, iteration and indexed access.
     """
-    def __init__(self, tbl):
-        super(_Rows, self).__init__()
+    def __init__(self, tbl, parent):
+        super(_Rows, self).__init__(parent)
         self._tbl = tbl
 
     def __getitem__(self, idx):
@@ -285,10 +302,10 @@ class _Rows(object):
         except IndexError:
             msg = "row index [%d] out of range" % idx
             raise IndexError(msg)
-        return _Row(tr)
+        return _Row(tr, self)
 
     def __iter__(self):
-        return (_Row(tr) for tr in self._tbl.tr_lst)
+        return (_Row(tr, self) for tr in self._tbl.tr_lst)
 
     def __len__(self):
         return len(self._tbl.tr_lst)

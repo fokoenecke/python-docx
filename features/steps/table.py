@@ -9,6 +9,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 from behave import given, then, when
 
 from docx import Document
+from docx.shared import Inches
 from docx.table import (
     _Cell, _Column, _ColumnCells, _Columns, _Row, _RowCells, _Rows
 )
@@ -56,6 +57,15 @@ def given_a_table(context):
     context.table_ = Document().add_table(rows=2, cols=2)
 
 
+@given('a table cell having a width of {width}')
+def given_a_table_cell_having_a_width_of_width(context, width):
+    table_idx = {'no explicit setting': 0, '1 inch': 1, '2 inches': 2}[width]
+    document = Document(test_docx('tbl-props'))
+    table = document.tables[table_idx]
+    cell = table.cell(0, 0)
+    context.cell = cell
+
+
 @given('a table column having a width of {width_desc}')
 def given_a_table_having_a_width_of_width_desc(context, width_desc):
     col_idx = {
@@ -72,6 +82,17 @@ def given_a_table_having_an_applied_style(context):
     docx_path = test_docx('tbl-having-applied-style')
     document = Document(docx_path)
     context.table_ = document.tables[0]
+
+
+@given('a table having an autofit layout of {autofit}')
+def given_a_table_having_an_autofit_layout_of_autofit(context, autofit):
+    tbl_idx = {
+        'no explicit setting': 0,
+        'autofit':             1,
+        'fixed':               2,
+    }[autofit]
+    document = Document(test_docx('tbl-props'))
+    context.table_ = document.tables[tbl_idx]
 
 
 @given('a table having two columns')
@@ -124,10 +145,23 @@ def when_apply_style_to_table(context):
     table.style = 'LightShading-Accent1'
 
 
+@when('I set the cell width to {width}')
+def when_I_set_the_cell_width_to_width(context, width):
+    new_value = {'1 inch': Inches(1)}[width]
+    context.cell.width = new_value
+
+
 @when('I set the column width to {width_emu}')
 def when_I_set_the_column_width_to_width_emu(context, width_emu):
     new_value = None if width_emu == 'None' else int(width_emu)
     context.column.width = new_value
+
+
+@when('I set the table autofit to {setting}')
+def when_I_set_the_table_autofit_to_setting(context, setting):
+    new_value = {'autofit': True, 'fixed': False}[setting]
+    table = context.table_
+    table.autofit = new_value
 
 
 # then =====================================================
@@ -284,11 +318,27 @@ def then_new_row_has_2_cells(context):
     assert len(context.row.cells) == 2
 
 
+@then('the reported autofit setting is {autofit}')
+def then_the_reported_autofit_setting_is_autofit(context, autofit):
+    expected_value = {'autofit': True, 'fixed': False}[autofit]
+    table = context.table_
+    assert table.autofit is expected_value
+
+
 @then('the reported column width is {width_emu}')
 def then_the_reported_column_width_is_width_emu(context, width_emu):
     expected_value = None if width_emu == 'None' else int(width_emu)
     assert context.column.width == expected_value, (
         'got %s' % context.column.width
+    )
+
+
+@then('the reported width of the cell is {width}')
+def then_the_reported_width_of_the_cell_is_width(context, width):
+    expected_width = {'None': None, '1 inch': Inches(1)}[width]
+    actual_width = context.cell.width
+    assert actual_width == expected_width, (
+        'expected %s, got %s' % (expected_width, actual_width)
     )
 
 

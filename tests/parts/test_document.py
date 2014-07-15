@@ -8,9 +8,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import pytest
 
-from docx.opc.constants import CONTENT_TYPE as CT, RELATIONSHIP_TYPE as RT
-from docx.opc.package import PartFactory
-from docx.opc.packuri import PackURI
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml.parts.document import CT_Body, CT_Document
 from docx.oxml.section import CT_SectPr
 from docx.oxml.text import CT_R
@@ -20,54 +18,50 @@ from docx.parts.image import ImagePart
 from docx.section import Section
 from docx.shape import InlineShape
 from docx.table import Table
-from docx.text import Paragraph
+from docx.text import Paragraph, Run
 
-from ..oxml.unitdata.dml import a_drawing, an_inline
 from ..oxml.parts.unitdata.document import a_body, a_document
 from ..oxml.unitdata.table import (
     a_gridCol, a_tbl, a_tblGrid, a_tblPr, a_tblW, a_tc, a_tr
 )
-from ..oxml.unitdata.text import a_p, a_pPr, a_sectPr, an_r
-from ..unitutil import (
-    function_mock, class_mock, initializer_mock, instance_mock, loose_mock,
-    method_mock, Mock, property_mock
+from ..oxml.unitdata.text import a_p, a_sectPr
+from ..unitutil.cxml import element, xml
+from ..unitutil.mock import (
+    instance_mock, class_mock, loose_mock, method_mock, property_mock
 )
 
 
 class DescribeDocumentPart(object):
 
-    def it_is_used_by_PartFactory_to_construct_main_document_part(
-            self, part_load_fixture):
-        # fixture ----------------------
-        document_part_load_, partname_, blob_, package_, document_part_ = (
-            part_load_fixture
-        )
-        content_type = CT.WML_DOCUMENT_MAIN
-        reltype = RT.OFFICE_DOCUMENT
-        # exercise ---------------------
-        part = PartFactory(partname_, content_type, reltype, blob_, package_)
-        # verify -----------------------
-        document_part_load_.assert_called_once_with(
-            partname_, content_type, blob_, package_
-        )
-        assert part is document_part_
+    def it_has_a_body(self, body_fixture):
+        document_part, _Body_, body_elm = body_fixture
+        _body = document_part.body
+        _Body_.assert_called_once_with(body_elm, document_part)
+        assert _body is _Body_.return_value
 
-    def it_can_be_constructed_by_opc_part_factory(self, parse_xml_, init):
-        # mockery ----------------------
-        partname, content_type, blob, document_elm, package = (
-            Mock(name='partname'), Mock(name='content_type'),
-            Mock(name='blob'), Mock(name='document_elm'),
-            Mock(name='package')
-        )
-        parse_xml_.return_value = document_elm
-        # exercise ---------------------
-        doc = DocumentPart.load(partname, content_type, blob, package)
-        # verify -----------------------
-        parse_xml_.assert_called_once_with(blob)
-        init.assert_called_once_with(
-            partname, content_type, document_elm, package
-        )
-        assert isinstance(doc, DocumentPart)
+    def it_provides_access_to_the_document_paragraphs(
+            self, paragraphs_fixture):
+        document_part, paragraphs_ = paragraphs_fixture
+        paragraphs = document_part.paragraphs
+        assert paragraphs is paragraphs_
+
+    def it_provides_access_to_the_document_sections(self, sections_fixture):
+        document, document_elm, Sections_ = sections_fixture
+        sections = document.sections
+        Sections_.assert_called_once_with(document_elm)
+        assert sections is Sections_.return_value
+
+    def it_provides_access_to_the_document_tables(self, tables_fixture):
+        document_part, tables_ = tables_fixture
+        tables = document_part.tables
+        assert tables is tables_
+
+    def it_provides_access_to_the_inline_shapes_in_the_document(
+            self, inline_shapes_fixture):
+        document, InlineShapes_, body_elm = inline_shapes_fixture
+        inline_shapes = document.inline_shapes
+        InlineShapes_.assert_called_once_with(body_elm, document)
+        assert inline_shapes is InlineShapes_.return_value
 
     def it_can_add_a_paragraph(self, add_paragraph_fixture):
         document_part, body_, p_ = add_paragraph_fixture
@@ -102,47 +96,6 @@ class DescribeDocumentPart(object):
         assert image_part is image_part_
         assert rId == rId_
 
-    def it_has_a_body(self, document_body_fixture):
-        document, _Body_, body_elm = document_body_fixture
-        _body = document.body
-        _Body_.assert_called_once_with(body_elm)
-        assert _body is _Body_.return_value
-
-    def it_can_serialize_to_xml(self, document_blob_fixture):
-        document_part, document_elm, serialize_part_xml_ = (
-            document_blob_fixture
-        )
-        blob = document_part.blob
-        serialize_part_xml_.assert_called_once_with(document_elm)
-        assert blob is serialize_part_xml_.return_value
-
-    def it_provides_access_to_the_document_paragraphs(
-            self, paragraphs_fixture):
-        document_part, paragraphs_ = paragraphs_fixture
-        paragraphs = document_part.paragraphs
-        assert paragraphs is paragraphs_
-
-    def it_provides_access_to_the_document_sections(self, sections_fixture):
-        document, document_elm, Sections_ = sections_fixture
-        sections = document.sections
-        Sections_.assert_called_once_with(document_elm)
-        assert sections is Sections_.return_value
-
-    def it_provides_access_to_the_document_tables(self, tables_fixture):
-        document_part, tables_ = tables_fixture
-        tables = document_part.tables
-        assert tables is tables_
-
-    def it_provides_access_to_the_inline_shapes_in_the_document(
-            self, inline_shapes_fixture):
-        document, InlineShapes_, body_elm = inline_shapes_fixture
-        inline_shapes = document.inline_shapes
-        InlineShapes_.assert_called_once_with(body_elm, document)
-        assert inline_shapes is InlineShapes_.return_value
-
-    def it_knows_it_is_the_part_its_child_objects_belong_to(self, document):
-        assert document.part is document
-
     def it_knows_the_next_available_xml_id(self, next_id_fixture):
         document, expected_id = next_id_fixture
         assert document.next_id == expected_id
@@ -171,20 +124,14 @@ class DescribeDocumentPart(object):
         return document_part, rows, cols, body_, table_
 
     @pytest.fixture
-    def document_blob_fixture(self, request, serialize_part_xml_):
-        document_elm = instance_mock(request, CT_Document)
-        document_part = DocumentPart(None, None, document_elm, None)
-        return document_part, document_elm, serialize_part_xml_
-
-    @pytest.fixture
-    def document_body_fixture(self, request, _Body_):
+    def body_fixture(self, request, _Body_):
         document_elm = (
             a_document().with_nsdecls().with_child(
                 a_body())
         ).element
         body_elm = document_elm[0]
-        document = DocumentPart(None, None, document_elm, None)
-        return document, _Body_, body_elm
+        document_part = DocumentPart(None, None, document_elm, None)
+        return document_part, _Body_, body_elm
 
     @pytest.fixture
     def inline_shapes_fixture(self, request, InlineShapes_):
@@ -248,34 +195,14 @@ class DescribeDocumentPart(object):
         return body_elm_
 
     @pytest.fixture
-    def blob_(self, request):
-        return instance_mock(request, str)
-
-    @pytest.fixture
-    def content_type_(self, request):
-        return instance_mock(request, str)
-
-    @pytest.fixture
-    def document(self):
-        return DocumentPart(None, None, None, None)
-
-    @pytest.fixture
     def document_elm_(self, request, body_elm_):
         return instance_mock(request, CT_Document, body=body_elm_)
-
-    @pytest.fixture
-    def document_part_(self, request):
-        return instance_mock(request, DocumentPart)
 
     @pytest.fixture
     def document_part_body_(self, request, body_):
         return property_mock(
             request, DocumentPart, 'body', return_value=body_
         )
-
-    @pytest.fixture
-    def document_part_load_(self, request):
-        return method_mock(request, DocumentPart, 'load')
 
     @pytest.fixture
     def get_or_add_image_fixture(
@@ -303,16 +230,8 @@ class DescribeDocumentPart(object):
         return image_parts_
 
     @pytest.fixture
-    def init(self, request):
-        return initializer_mock(request, DocumentPart)
-
-    @pytest.fixture
     def InlineShapes_(self, request):
         return class_mock(request, 'docx.parts.document.InlineShapes')
-
-    @pytest.fixture
-    def parse_xml_(self, request):
-        return function_mock(request, 'docx.parts.document.parse_xml')
 
     @pytest.fixture
     def p_(self, request):
@@ -325,19 +244,6 @@ class DescribeDocumentPart(object):
     @pytest.fixture
     def paragraphs_(self, request):
         return instance_mock(request, list)
-
-    @pytest.fixture
-    def part_load_fixture(
-            self, document_part_load_, partname_, blob_, package_,
-            document_part_):
-        document_part_load_.return_value = document_part_
-        return (
-            document_part_load_, partname_, blob_, package_, document_part_
-        )
-
-    @pytest.fixture
-    def partname_(self, request):
-        return instance_mock(request, PackURI)
 
     @pytest.fixture
     def relate_to_(self, request, rId_):
@@ -368,12 +274,6 @@ class DescribeDocumentPart(object):
         return instance_mock(request, CT_SectPr)
 
     @pytest.fixture
-    def serialize_part_xml_(self, request):
-        return function_mock(
-            request, 'docx.parts.document.serialize_part_xml'
-        )
-
-    @pytest.fixture
     def start_type_(self, request):
         return instance_mock(request, int)
 
@@ -400,24 +300,22 @@ class Describe_Body(object):
         assert body._body.xml == expected_xml
         assert isinstance(table, Table)
 
-    def it_can_clear_itself_of_all_content_it_holds(
-            self, clear_content_fixture):
-        body, expected_xml = clear_content_fixture
+    def it_can_clear_itself_of_all_content_it_holds(self, clear_fixture):
+        body, expected_xml = clear_fixture
         _body = body.clear_content()
         assert body._body.xml == expected_xml
         assert _body is body
 
     def it_provides_access_to_the_paragraphs_it_contains(
-            self, body_with_paragraphs):
-        body = body_with_paragraphs
+            self, paragraphs_fixture):
+        body = paragraphs_fixture
         paragraphs = body.paragraphs
         assert len(paragraphs) == 2
         for p in paragraphs:
             assert isinstance(p, Paragraph)
 
-    def it_provides_access_to_the_tables_it_contains(
-            self, body_with_tables):
-        body = body_with_tables
+    def it_provides_access_to_the_tables_it_contains(self, tables_fixture):
+        body = tables_fixture
         tables = body.tables
         assert len(tables) == 2
         for table in tables:
@@ -426,25 +324,22 @@ class Describe_Body(object):
     # fixtures -------------------------------------------------------
 
     @pytest.fixture(params=[
-        (0, False), (1, False), (0, True), (1, True)
+        ('w:body',                 'w:body/w:p'),
+        ('w:body/w:p',             'w:body/(w:p, w:p)'),
+        ('w:body/w:sectPr',        'w:body/(w:p, w:sectPr)'),
+        ('w:body/(w:p, w:sectPr)', 'w:body/(w:p, w:p, w:sectPr)'),
     ])
     def add_paragraph_fixture(self, request):
-        p_count, has_sectPr = request.param
-        # body element -----------------
-        body_bldr = self._body_bldr(p_count=p_count, sectPr=has_sectPr)
-        body_elm = body_bldr.element
-        body = _Body(body_elm)
-        # expected XML -----------------
-        p_count += 1
-        body_bldr = self._body_bldr(p_count=p_count, sectPr=has_sectPr)
-        expected_xml = body_bldr.xml()
+        before_cxml, after_cxml = request.param
+        body = _Body(element(before_cxml), None)
+        expected_xml = xml(after_cxml)
         return body, expected_xml
 
     @pytest.fixture(params=[(0, False), (0, True), (1, False), (1, True)])
     def add_table_fixture(self, request):
         p_count, has_sectPr = request.param
         body_bldr = self._body_bldr(p_count=p_count, sectPr=has_sectPr)
-        body = _Body(body_bldr.element)
+        body = _Body(body_bldr.element, None)
 
         tbl_bldr = self._tbl_bldr()
         body_bldr = self._body_bldr(
@@ -454,42 +349,27 @@ class Describe_Body(object):
 
         return body, expected_xml
 
-    @pytest.fixture
-    def body_with_paragraphs(self):
-        body_elm = (
-            a_body().with_nsdecls()
-                    .with_child(a_p())
-                    .with_child(a_p())
-                    .element
-        )
-        return _Body(body_elm)
-
-    @pytest.fixture
-    def body_with_tables(self):
-        body_elm = (
-            a_body().with_nsdecls()
-                    .with_child(a_tbl())
-                    .with_child(a_tbl())
-                    .element
-        )
-        return _Body(body_elm)
-
-    @pytest.fixture(params=[False, True])
-    def clear_content_fixture(self, request):
-        has_sectPr = request.param
-        # body element -----------------
-        body_bldr = a_body().with_nsdecls()
-        body_bldr.with_child(a_p())
-        if has_sectPr:
-            body_bldr.with_child(a_sectPr())
-        body_elm = body_bldr.element
-        body = _Body(body_elm)
-        # expected XML -----------------
-        body_bldr = a_body().with_nsdecls()
-        if has_sectPr:
-            body_bldr.with_child(a_sectPr())
-        expected_xml = body_bldr.xml()
+    @pytest.fixture(params=[
+        ('w:body',                 'w:body'),
+        ('w:body/w:p',             'w:body'),
+        ('w:body/w:sectPr',        'w:body/w:sectPr'),
+        ('w:body/(w:p, w:sectPr)', 'w:body/w:sectPr'),
+    ])
+    def clear_fixture(self, request):
+        before_cxml, after_cxml = request.param
+        body = _Body(element(before_cxml), None)
+        expected_xml = xml(after_cxml)
         return body, expected_xml
+
+    @pytest.fixture
+    def paragraphs_fixture(self):
+        return _Body(element('w:body/(w:p, w:p)'), None)
+
+    @pytest.fixture
+    def tables_fixture(self):
+        return _Body(element('w:body/(w:tbl, w:tbl)'), None)
+
+    # fixture components ---------------------------------------------
 
     def _body_bldr(self, p_count=0, tbl_bldr=None, sectPr=False):
         body_bldr = a_body().with_nsdecls()
@@ -535,8 +415,8 @@ class DescribeInlineShapes(object):
 
     def it_knows_how_many_inline_shapes_it_contains(
             self, inline_shapes_fixture):
-        inline_shapes, inline_shape_count = inline_shapes_fixture
-        assert len(inline_shapes) == inline_shape_count
+        inline_shapes, expected_count = inline_shapes_fixture
+        assert len(inline_shapes) == expected_count
 
     def it_can_iterate_over_its_InlineShape_instances(
             self, inline_shapes_fixture):
@@ -568,10 +448,10 @@ class DescribeInlineShapes(object):
             self, add_picture_fixture):
         # fixture ----------------------
         (inline_shapes, image_descriptor_, document_, InlineShape_,
-         r_, image_part_, rId_, shape_id_, new_picture_shape_
+         run, r_, image_part_, rId_, shape_id_, new_picture_shape_
          ) = add_picture_fixture
         # exercise ---------------------
-        picture_shape = inline_shapes.add_picture(image_descriptor_)
+        picture_shape = inline_shapes.add_picture(image_descriptor_, run)
         # verify -----------------------
         document_.get_or_add_image_part.assert_called_once_with(
             image_descriptor_
@@ -594,10 +474,22 @@ class DescribeInlineShapes(object):
             r_, image_part_, rId_, shape_id_, new_picture_shape_):
         inline_shapes = InlineShapes(body_, None)
         property_mock(request, InlineShapes, 'part', return_value=document_)
+        run = Run(r_, None)
         return (
-            inline_shapes, image_descriptor_, document_, InlineShape_, r_,
-            image_part_, rId_, shape_id_, new_picture_shape_
+            inline_shapes, image_descriptor_, document_, InlineShape_, run,
+            r_, image_part_, rId_, shape_id_, new_picture_shape_
         )
+
+    @pytest.fixture
+    def inline_shapes_fixture(self):
+        body = element(
+            'w:body/w:p/(w:r/w:drawing/wp:inline, w:r/w:drawing/wp:inline)'
+        )
+        inline_shapes = InlineShapes(body, None)
+        expected_count = 2
+        return inline_shapes, expected_count
+
+    # fixture components ---------------------------------------------
 
     @pytest.fixture
     def body_(self, request, r_):
@@ -627,25 +519,6 @@ class DescribeInlineShapes(object):
         return InlineShape_
 
     @pytest.fixture
-    def inline_shapes_fixture(self):
-        inline_shape_count = 2
-        body = (
-            a_body().with_nsdecls('w', 'wp').with_child(
-                a_p().with_child(
-                    an_r().with_child(
-                        a_drawing().with_child(
-                            an_inline()))).with_child(
-                    an_r().with_child(
-                        a_drawing().with_child(
-                            an_inline())
-                    )
-                )
-            )
-        ).element
-        inline_shapes = InlineShapes(body, None)
-        return inline_shapes, inline_shape_count
-
-    @pytest.fixture
     def inline_shapes_with_parent_(self, request):
         parent_ = loose_mock(request, name='parent_')
         inline_shapes = InlineShapes(None, parent_)
@@ -672,7 +545,6 @@ class DescribeSections(object):
 
     def it_knows_how_many_sections_it_contains(self, len_fixture):
         sections, expected_len = len_fixture
-        print(sections._document_elm.xml)
         assert len(sections) == expected_len
 
     def it_can_iterate_over_its_Section_instances(self, iter_fixture):
@@ -710,11 +582,4 @@ class DescribeSections(object):
 
     @pytest.fixture
     def document_elm(self):
-        return (
-            a_document().with_nsdecls().with_child(
-                a_body().with_child(
-                    a_p().with_child(
-                        a_pPr().with_child(
-                            a_sectPr()))).with_child(
-                    a_sectPr()))
-        ).element
+        return element('w:document/w:body/(w:p/w:pPr/w:sectPr, w:sectPr)')

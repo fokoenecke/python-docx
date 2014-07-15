@@ -3,6 +3,25 @@
 Release History
 ---------------
 
+0.7.3 (2014-07-14)
+++++++++++++++++++
+
+- Add Table.autofit
+- Add feature #46: _Cell.width
+
+
+0.7.2 (2014-07-13)
+++++++++++++++++++
+
+- Fix: Word does not interpret <w:cr/> as line feed
+
+
+0.7.1 (2014-07-11)
+++++++++++++++++++
+
+- Add feature #14: Run.add_picture()
+
+
 0.7.0 (2014-06-27)
 ++++++++++++++++++
 

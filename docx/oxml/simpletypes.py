@@ -8,6 +8,7 @@ type in the associated XML schema.
 
 from __future__ import absolute_import, print_function
 
+from ..exceptions import InvalidXmlError
 from ..shared import Emu, Twips
 
 
@@ -95,6 +96,11 @@ class XsdBoolean(BaseSimpleType):
 
     @classmethod
     def convert_from_xml(cls, str_value):
+        if str_value not in ('1', '0', 'true', 'false'):
+            raise InvalidXmlError(
+                "value must be one of '1', '0', 'true' or 'false', got '%s'"
+                % str_value
+            )
         return str_value in ('1', 'true')
 
     @classmethod
@@ -216,6 +222,11 @@ class ST_OnOff(XsdBoolean):
 
     @classmethod
     def convert_from_xml(cls, str_value):
+        if str_value not in ('1', '0', 'true', 'false', 'on', 'off'):
+            raise InvalidXmlError(
+                "value must be one of '1', '0', 'true', 'false', 'on', or 'o"
+                "ff', got '%s'" % str_value
+            )
         return str_value in ('1', 'true', 'on')
 
 
@@ -251,6 +262,30 @@ class ST_SignedTwipsMeasure(XsdInt):
 
 class ST_String(XsdString):
     pass
+
+
+class ST_TblLayoutType(XsdString):
+
+    @classmethod
+    def validate(cls, value):
+        cls.validate_string(value)
+        valid_values = ('fixed', 'autofit')
+        if value not in valid_values:
+            raise ValueError(
+                "must be one of %s, got '%s'" % (valid_values, value)
+            )
+
+
+class ST_TblWidth(XsdString):
+
+    @classmethod
+    def validate(cls, value):
+        cls.validate_string(value)
+        valid_values = ('auto', 'dxa', 'nil', 'pct')
+        if value not in valid_values:
+            raise ValueError(
+                "must be one of %s, got '%s'" % (valid_values, value)
+            )
 
 
 class ST_TwipsMeasure(XsdUnsignedLong):

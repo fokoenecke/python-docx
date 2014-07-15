@@ -12,9 +12,7 @@ from collections import Sequence
 
 from ..enum.section import WD_SECTION
 from ..opc.constants import RELATIONSHIP_TYPE as RT
-from ..opc.oxml import serialize_part_xml
-from ..opc.package import Part
-from ..oxml import parse_xml
+from ..opc.package import XmlPart
 from ..section import Section
 from ..shape import InlineShape
 from ..shared import lazyproperty, Parented
@@ -22,16 +20,10 @@ from ..table import Table
 from ..text import Paragraph
 
 
-class DocumentPart(Part):
+class DocumentPart(XmlPart):
     """
     Main document part of a WordprocessingML (WML) package, aka a .docx file.
     """
-    def __init__(self, partname, content_type, document_elm, package):
-        super(DocumentPart, self).__init__(
-            partname, content_type, package=package
-        )
-        self._element = document_elm
-
     def add_paragraph(self):
         """
         Return a paragraph newly added to the end of body content.
@@ -54,16 +46,12 @@ class DocumentPart(Part):
         """
         return self.body.add_table(rows, cols)
 
-    @property
-    def blob(self):
-        return serialize_part_xml(self._element)
-
     @lazyproperty
     def body(self):
         """
         The |_Body| instance containing the content for this document.
         """
-        return _Body(self._element.body)
+        return _Body(self._element.body, self)
 
     def get_or_add_image_part(self, image_descriptor):
         """
@@ -85,12 +73,6 @@ class DocumentPart(Part):
         document.
         """
         return InlineShapes(self._element.body, self)
-
-    @classmethod
-    def load(cls, partname, content_type, blob, package):
-        document_elm = parse_xml(blob)
-        document_part = cls(partname, content_type, document_elm, package)
-        return document_part
 
     @property
     def next_id(self):
@@ -114,15 +96,6 @@ class DocumentPart(Part):
         """
         return self.body.paragraphs
 
-    @property
-    def part(self):
-        """
-        Part of the parent protocol, "children" of the document will not know
-        the part that contains them so must ask their parent object. That
-        chain of delegation ends here for document child objects.
-        """
-        return self
-
     @lazyproperty
     def sections(self):
         """
@@ -140,13 +113,13 @@ class DocumentPart(Part):
         return self.body.tables
 
 
-class _Body(object):
+class _Body(Parented):
     """
     Proxy for ``<w:body>`` element in this document, having primarily a
     container role.
     """
-    def __init__(self, body_elm):
-        super(_Body, self).__init__()
+    def __init__(self, body_elm, parent):
+        super(_Body, self).__init__(parent)
         self._body = body_elm
 
     def add_paragraph(self):
@@ -154,7 +127,7 @@ class _Body(object):
         Return a paragraph newly added to the end of body content.
         """
         p = self._body.add_p()
-        return Paragraph(p)
+        return Paragraph(p, self)
 
     def add_table(self, rows, cols):
         """
@@ -162,7 +135,7 @@ class _Body(object):
         the main document story.
         """
         tbl = self._body.add_tbl()
-        table = Table(tbl)
+        table = Table(tbl, self)
         for i in range(cols):
             table.add_column()
         for i in range(rows):
@@ -180,7 +153,7 @@ class _Body(object):
 
     @property
     def paragraphs(self):
-        return [Paragraph(p) for p in self._body.p_lst]
+        return [Paragraph(p, self) for p in self._body.p_lst]
 
     @property
     def tables(self):
@@ -188,7 +161,7 @@ class _Body(object):
         A sequence containing all the tables in the document, in the order
         they appear.
         """
-        return [Table(tbl) for tbl in self._body.tbl_lst]
+        return [Table(tbl, self) for tbl in self._body.tbl_lst]
 
 
 class InlineShapes(Parented):
@@ -217,22 +190,23 @@ class InlineShapes(Parented):
     def __len__(self):
         return len(self._inline_lst)
 
-    def add_picture(self, image_descriptor):
+    def add_picture(self, image_descriptor, run):
         """
-        Add the image identified by *image_descriptor* to the document at its
-        native size. The picture is placed inline in a new paragraph at the
-        end of the document. *image_descriptor* can be a path (a string) or a
-        file-like object containing a binary image.
+        Return an |InlineShape| instance containing the picture identified by
+        *image_descriptor* and added to the end of *run*. The picture shape
+        has the native size of the image. *image_descriptor* can be a path (a
+        string) or a file-like object containing a binary image.
         """
         image_part, rId = self.part.get_or_add_image_part(image_descriptor)
         shape_id = self.part.next_id
-        r = self._body.add_p().add_r()
-        return InlineShape.new_picture(r, image_part, rId, shape_id)
+        r = run._r
+        picture = InlineShape.new_picture(r, image_part, rId, shape_id)
+        return picture
 
     @property
     def _inline_lst(self):
         body = self._body
-        xpath = './w:p/w:r/w:drawing/wp:inline'
+        xpath = '//w:p/w:r/w:drawing/wp:inline'
         return body.xpath(xpath)
 
 

@@ -8,15 +8,15 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import pytest
 
+from docx.shared import Inches
 from docx.table import (
     _Cell, _Column, _ColumnCells, _Columns, _Row, _RowCells, _Rows, Table
 )
 from docx.text import Paragraph
 
-from .oxml.unitdata.table import (
-    a_gridCol, a_tbl, a_tblGrid, a_tblPr, a_tblStyle, a_tc, a_tcPr, a_tr
-)
-from .oxml.unitdata.text import a_p, a_t, an_r
+from .oxml.unitdata.table import a_gridCol, a_tbl, a_tblGrid, a_tc, a_tr
+from .oxml.unitdata.text import a_p
+from .unitutil.cxml import element, xml
 
 
 class DescribeTable(object):
@@ -52,8 +52,8 @@ class DescribeTable(object):
         assert isinstance(column, _Column)
         assert column._gridCol is table._tbl.tblGrid.gridCol_lst[1]
 
-    def it_knows_its_table_style(self, table_style_fixture):
-        table, style = table_style_fixture
+    def it_knows_its_table_style(self, table_style_get_fixture):
+        table, style = table_style_get_fixture
         assert table.style == style
 
     def it_can_apply_a_table_style_by_name(self, table_style_set_fixture):
@@ -61,110 +61,172 @@ class DescribeTable(object):
         table.style = style_name
         assert table._tbl.xml == expected_xml
 
+    def it_knows_whether_it_should_autofit(self, autofit_get_fixture):
+        table, expected_value = autofit_get_fixture
+        assert table.autofit is expected_value
+
+    def it_can_change_its_autofit_setting(self, autofit_set_fixture):
+        table, new_value, expected_xml = autofit_set_fixture
+        table.autofit = new_value
+        assert table._tbl.xml == expected_xml
+
     # fixtures -------------------------------------------------------
 
     @pytest.fixture
     def add_column_fixture(self):
         tbl = _tbl_bldr(2, 1).element
-        table = Table(tbl)
+        table = Table(tbl, None)
         expected_xml = _tbl_bldr(2, 2).xml()
         return table, expected_xml
 
     @pytest.fixture
     def add_row_fixture(self):
         tbl = _tbl_bldr(rows=1, cols=2).element
-        table = Table(tbl)
+        table = Table(tbl, None)
         expected_xml = _tbl_bldr(rows=2, cols=2).xml()
         return table, expected_xml
+
+    @pytest.fixture(params=[
+        ('w:tbl/w:tblPr',                             True),
+        ('w:tbl/w:tblPr/w:tblLayout',                 True),
+        ('w:tbl/w:tblPr/w:tblLayout{w:type=autofit}', True),
+        ('w:tbl/w:tblPr/w:tblLayout{w:type=fixed}',   False),
+    ])
+    def autofit_get_fixture(self, request):
+        tbl_cxml, expected_autofit = request.param
+        table = Table(element(tbl_cxml), None)
+        return table, expected_autofit
+
+    @pytest.fixture(params=[
+        ('w:tbl/w:tblPr', True,
+         'w:tbl/w:tblPr/w:tblLayout{w:type=autofit}'),
+        ('w:tbl/w:tblPr', False,
+         'w:tbl/w:tblPr/w:tblLayout{w:type=fixed}'),
+        ('w:tbl/w:tblPr', None,
+         'w:tbl/w:tblPr/w:tblLayout{w:type=fixed}'),
+        ('w:tbl/w:tblPr/w:tblLayout{w:type=fixed}', True,
+         'w:tbl/w:tblPr/w:tblLayout{w:type=autofit}'),
+        ('w:tbl/w:tblPr/w:tblLayout{w:type=autofit}', False,
+         'w:tbl/w:tblPr/w:tblLayout{w:type=fixed}'),
+    ])
+    def autofit_set_fixture(self, request):
+        tbl_cxml, new_value, expected_tbl_cxml = request.param
+        table = Table(element(tbl_cxml), None)
+        expected_xml = xml(expected_tbl_cxml)
+        return table, new_value, expected_xml
+
+    @pytest.fixture(params=[
+        ('w:tbl/w:tblPr', None),
+        ('w:tbl/w:tblPr/w:tblStyle{w:val=foobar}', 'foobar'),
+    ])
+    def table_style_get_fixture(self, request):
+        tbl_cxml, expected_style = request.param
+        table = Table(element(tbl_cxml), None)
+        return table, expected_style
+
+    @pytest.fixture(params=[
+        ('w:tbl/w:tblPr', 'foobar',
+         'w:tbl/w:tblPr/w:tblStyle{w:val=foobar}'),
+        ('w:tbl/w:tblPr/w:tblStyle{w:val=foobar}', 'barfoo',
+         'w:tbl/w:tblPr/w:tblStyle{w:val=barfoo}'),
+        ('w:tbl/w:tblPr/w:tblStyle{w:val=foobar}', None,
+         'w:tbl/w:tblPr'),
+        ('w:tbl/w:tblPr', None,
+         'w:tbl/w:tblPr'),
+    ])
+    def table_style_set_fixture(self, request):
+        tbl_cxml, new_style, expected_cxml = request.param
+        table = Table(element(tbl_cxml), None)
+        expected_xml = xml(expected_cxml)
+        return table, new_style, expected_xml
+
+    # fixture components ---------------------------------------------
 
     @pytest.fixture
     def table(self):
         tbl = _tbl_bldr(rows=2, cols=2).element
-        table = Table(tbl)
+        table = Table(tbl, None)
         return table
-
-    @pytest.fixture
-    def table_style_fixture(self):
-        style = 'foobar'
-        tbl = (
-            a_tbl().with_nsdecls().with_child(
-                a_tblPr().with_child(
-                    a_tblStyle().with_val(style)))
-        ).element
-        table = Table(tbl)
-        return table, style
-
-    @pytest.fixture
-    def table_style_set_fixture(self):
-        # table ------------------------
-        tbl = a_tbl().with_nsdecls().with_child(a_tblPr()).element
-        table = Table(tbl)
-        # style_name -------------------
-        style_name = 'foobar'
-        # expected_xml -----------------
-        expected_xml = (
-            a_tbl().with_nsdecls().with_child(
-                a_tblPr().with_child(
-                    a_tblStyle().with_val(style_name)))
-        ).xml()
-        return table, style_name, expected_xml
 
 
 class Describe_Cell(object):
 
     def it_provides_access_to_the_paragraphs_it_contains(
-            self, cell_with_paragraphs):
-        cell = cell_with_paragraphs
+            self, paragraphs_fixture):
+        cell = paragraphs_fixture
         paragraphs = cell.paragraphs
         assert len(paragraphs) == 2
-        for p in paragraphs:
-            assert isinstance(p, Paragraph)
+        count = 0
+        for idx, paragraph in enumerate(paragraphs):
+            assert isinstance(paragraph, Paragraph)
+            assert paragraph is paragraphs[idx]
+            count += 1
+        assert count == 2
 
     def it_can_replace_its_content_with_a_string_of_text(
-            self, cell_text_fixture):
-        cell, text, expected_xml = cell_text_fixture
+            self, text_set_fixture):
+        cell, text, expected_xml = text_set_fixture
         cell.text = text
+        assert cell._tc.xml == expected_xml
+
+    def it_knows_its_width_in_EMU(self, width_get_fixture):
+        cell, expected_width = width_get_fixture
+        assert cell.width == expected_width
+
+    def it_can_change_its_width(self, width_set_fixture):
+        cell, value, expected_xml = width_set_fixture
+        cell.width = value
+        assert cell.width == value
         assert cell._tc.xml == expected_xml
 
     # fixtures -------------------------------------------------------
 
     @pytest.fixture
-    def cell_text_fixture(self):
-        # cell -------------------------
-        tc = (
-            a_tc().with_nsdecls().with_child(
-                a_tcPr()).with_child(
-                a_p()).with_child(
-                a_tbl()).with_child(
-                a_p())
-        ).element
-        cell = _Cell(tc)
-        # text -------------------------
-        text = 'foobar'
-        # expected_xml -----------------
-        expected_xml = (
-            a_tc().with_nsdecls().with_child(
-                a_tcPr()).with_child(
-                a_p().with_child(
-                    an_r().with_child(
-                        a_t().with_text(text))))
-        ).xml()
-        return cell, text, expected_xml
+    def paragraphs_fixture(self):
+        return _Cell(element('w:tc/(w:p, w:p)'), None)
 
-    @pytest.fixture
-    def cell_with_paragraphs(self):
-        tc = (
-            a_tc().with_nsdecls()
-                  .with_child(a_p())
-                  .with_child(a_p())
-                  .element
-        )
-        return _Cell(tc)
+    @pytest.fixture(params=[
+        ('w:tc/w:p', 'foobar',
+         'w:tc/w:p/w:r/w:t"foobar"'),
+        ('w:tc/w:p', 'fo\tob\rar\n',
+         'w:tc/w:p/w:r/(w:t"fo",w:tab,w:t"ob",w:br,w:t"ar",w:br)'),
+        ('w:tc/(w:tcPr, w:p, w:tbl, w:p)', 'foobar',
+         'w:tc/(w:tcPr, w:p/w:r/w:t"foobar")'),
+    ])
+    def text_set_fixture(self, request):
+        tc_cxml, new_text, expected_cxml = request.param
+        cell = _Cell(element(tc_cxml), None)
+        expected_xml = xml(expected_cxml)
+        return cell, new_text, expected_xml
+
+    @pytest.fixture(params=[
+        ('w:tc',                                   None),
+        ('w:tc/w:tcPr',                            None),
+        ('w:tc/w:tcPr/w:tcW{w:w=25%,w:type=pct}',  None),
+        ('w:tc/w:tcPr/w:tcW{w:w=1440,w:type=dxa}', 914400),
+    ])
+    def width_get_fixture(self, request):
+        tc_cxml, expected_width = request.param
+        cell = _Cell(element(tc_cxml), None)
+        return cell, expected_width
+
+    @pytest.fixture(params=[
+        ('w:tc', Inches(1),
+         'w:tc/w:tcPr/w:tcW{w:w=1440,w:type=dxa}'),
+        ('w:tc/w:tcPr/w:tcW{w:w=25%,w:type=pct}', Inches(2),
+         'w:tc/w:tcPr/w:tcW{w:w=2880,w:type=dxa}'),
+    ])
+    def width_set_fixture(self, request):
+        tc_cxml, new_value, expected_cxml = request.param
+        cell = _Cell(element(tc_cxml), None)
+        expected_xml = xml(expected_cxml)
+        return cell, new_value, expected_xml
 
 
 class Describe_Column(object):
 
-    def it_provides_access_to_the_column_cells(self, column):
+    def it_provides_access_to_the_column_cells(self):
+        column = _Column(None, None, None)
         cells = column.cells
         assert isinstance(cells, _ColumnCells)
 
@@ -181,43 +243,29 @@ class Describe_Column(object):
     # fixtures -------------------------------------------------------
 
     @pytest.fixture(params=[
-        (4242,     2693670),
-        (1440,     914400),
-        ('2.54cm', 914400),
-        ('54mm',   1944000),
-        ('12.5pt', 158750),
-        (None,     None),
+        ('w:gridCol{w:w=4242}',   2693670),
+        ('w:gridCol{w:w=1440}',    914400),
+        ('w:gridCol{w:w=2.54cm}',  914400),
+        ('w:gridCol{w:w=54mm}',   1944000),
+        ('w:gridCol{w:w=12.5pt}',  158750),
+        ('w:gridCol',                None),
     ])
     def width_get_fixture(self, request):
-        w, expected_width = request.param
-        gridCol = self.gridCol_bldr(w).element
-        column = _Column(gridCol, None)
+        gridCol_cxml, expected_width = request.param
+        column = _Column(element(gridCol_cxml), None, None)
         return column, expected_width
 
     @pytest.fixture(params=[
-        (4242, None,   None),
-        (None, None,   None),
-        (4242, 914400, 1440),
-        (None, 914400, 1440),
+        ('w:gridCol',           914400, 'w:gridCol{w:w=1440}'),
+        ('w:gridCol{w:w=4242}', 457200, 'w:gridCol{w:w=720}'),
+        ('w:gridCol{w:w=4242}',   None, 'w:gridCol'),
+        ('w:gridCol',             None, 'w:gridCol'),
     ])
     def width_set_fixture(self, request):
-        initial_w, value, expected_w = request.param
-        gridCol = self.gridCol_bldr(initial_w).element
-        column = _Column(gridCol, None)
-        expected_xml = self.gridCol_bldr(expected_w).xml()
-        return column, value, expected_xml
-
-    # fixture components ---------------------------------------------
-
-    @pytest.fixture
-    def column(self):
-        return _Column(None, None)
-
-    def gridCol_bldr(self, w=None):
-        gridCol_bldr = a_gridCol().with_nsdecls()
-        if w is not None:
-            gridCol_bldr.with_w(w)
-        return gridCol_bldr
+        gridCol_cxml, new_value, expected_cxml = request.param
+        column = _Column(element(gridCol_cxml), None, None)
+        expected_xml = xml(expected_cxml)
+        return column, new_value, expected_xml
 
 
 class Describe_ColumnCells(object):
@@ -256,7 +304,7 @@ class Describe_ColumnCells(object):
         cell_count = 2
         tbl = _tbl_bldr(rows=cell_count, cols=1).element
         gridCol = tbl.tblGrid.gridCol_lst[0]
-        cells = _ColumnCells(tbl, gridCol)
+        cells = _ColumnCells(tbl, gridCol, None)
         return cells, cell_count
 
 
@@ -295,24 +343,16 @@ class Describe_Columns(object):
     def columns_fixture(self):
         column_count = 2
         tbl = _tbl_bldr(rows=2, cols=column_count).element
-        columns = _Columns(tbl)
+        columns = _Columns(tbl, None)
         return columns, column_count
 
 
 class Describe_Row(object):
 
-    def it_provides_access_to_the_row_cells(self, cells_access_fixture):
-        row = cells_access_fixture
+    def it_provides_access_to_the_row_cells(self):
+        row = _Row(element('w:tr'), None)
         cells = row.cells
         assert isinstance(cells, _RowCells)
-
-    # fixtures -------------------------------------------------------
-
-    @pytest.fixture
-    def cells_access_fixture(self):
-        tr = a_tr().with_nsdecls().element
-        row = _Row(tr)
-        return row
 
 
 class Describe_RowCells(object):
@@ -348,12 +388,8 @@ class Describe_RowCells(object):
 
     @pytest.fixture
     def cell_count_fixture(self):
+        cells = _RowCells(element('w:tr/(w:tc, w:tc)'), None)
         cell_count = 2
-        tr_bldr = a_tr().with_nsdecls()
-        for idx in range(cell_count):
-            tr_bldr.with_child(a_tc())
-        tr = tr_bldr.element
-        cells = _RowCells(tr)
         return cells, cell_count
 
 
@@ -392,7 +428,7 @@ class Describe_Rows(object):
     def rows_fixture(self):
         row_count = 2
         tbl = _tbl_bldr(rows=row_count, cols=2).element
-        rows = _Rows(tbl)
+        rows = _Rows(tbl, None)
         return rows, row_count
 
 

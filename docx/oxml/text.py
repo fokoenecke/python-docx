@@ -85,8 +85,8 @@ class CT_P(BaseOxmlElement):
     @property
     def style(self):
         """
-        String contained in w:val attribute of <w:pPr><w:pStyle> child, or
-        None if that element is not present.
+        String contained in w:val attribute of ./w:pPr/w:pStyle grandchild,
+        or |None| if not present.
         """
         pPr = self.pPr
         if pPr is None:
@@ -95,10 +95,6 @@ class CT_P(BaseOxmlElement):
 
     @style.setter
     def style(self, style):
-        """
-        Set style of this <w:p> element to *style*. If *style* is None,
-        remove the style element.
-        """
         pPr = self.get_or_add_pPr()
         pPr.style = style
 
@@ -241,7 +237,8 @@ class CT_R(BaseOxmlElement):
         text = ''
         for child in self:
             if child.tag == qn('w:t'):
-                text += child.text
+                t_text = child.text
+                text += t_text if t_text is not None else ''
             elif child.tag == qn('w:tab'):
                 text += '\t'
             elif child.tag in (qn('w:br'), qn('w:cr')):
@@ -256,8 +253,8 @@ class CT_R(BaseOxmlElement):
     @property
     def underline(self):
         """
-        String contained in w:val attribute of <w:u> grandchild, or |None| if
-        that element is not present.
+        String contained in w:val attribute of ./w:rPr/w:u grandchild, or
+        |None| if not present.
         """
         rPr = self.rPr
         if rPr is None:
@@ -423,7 +420,7 @@ class _RunContentAppender(object):
             self._r.add_tab()
         elif char in '\r\n':
             self.flush()
-            self._r.add_cr()
+            self._r.add_br()
         else:
             self._bfr.append(char)
 

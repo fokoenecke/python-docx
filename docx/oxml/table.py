@@ -8,10 +8,13 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 from . import parse_xml
 from .ns import nsdecls
-from .simpletypes import ST_TwipsMeasure
+from ..shared import Emu, Twips
+from .simpletypes import (
+    ST_TblLayoutType, ST_TblWidth, ST_TwipsMeasure, XsdInt
+)
 from .xmlchemy import (
-    BaseOxmlElement, OneAndOnlyOne, OneOrMore, OptionalAttribute, ZeroOrOne,
-    ZeroOrMore
+    BaseOxmlElement, OneAndOnlyOne, OneOrMore, OptionalAttribute,
+    RequiredAttribute, ZeroOrOne, ZeroOrMore
 )
 
 
@@ -70,19 +73,90 @@ class CT_TblGridCol(BaseOxmlElement):
     w = OptionalAttribute('w:w', ST_TwipsMeasure)
 
 
+class CT_TblLayoutType(BaseOxmlElement):
+    """
+    ``<w:tblLayout>`` element, specifying whether column widths are fixed or
+    can be automatically adjusted based on content.
+    """
+    type = OptionalAttribute('w:type', ST_TblLayoutType)
+
+
 class CT_TblPr(BaseOxmlElement):
     """
     ``<w:tblPr>`` element, child of ``<w:tbl>``, holds child elements that
     define table properties such as style and borders.
     """
-    tblStyle = ZeroOrOne('w:tblStyle')
+    tblStyle = ZeroOrOne('w:tblStyle', successors=(
+        'w:tblpPr', 'w:tblOverlap', 'w:bidiVisual', 'w:tblStyleRowBandSize',
+        'w:tblStyleColBandSize', 'w:tblW', 'w:jc', 'w:tblCellSpacing',
+        'w:tblInd', 'w:tblBorders', 'w:shd', 'w:tblLayout', 'w:tblCellMar',
+        'w:tblLook', 'w:tblCaption', 'w:tblDescription', 'w:tblPrChange'
+    ))
+    tblLayout = ZeroOrOne('w:tblLayout', successors=(
+        'w:tblLayout', 'w:tblCellMar', 'w:tblLook', 'w:tblCaption',
+        'w:tblDescription', 'w:tblPrChange'
+    ))
 
-    def add_tblStyle(self, style_name):
+    @property
+    def autofit(self):
         """
-        Return a new <w:tblStyle> element having its style set to
-        *style_name*.
+        Return |False| if there is a ``<w:tblLayout>`` child with ``w:type``
+        attribute set to ``'fixed'``. Otherwise return |True|.
         """
-        return self._add_tblStyle(val=style_name)
+        tblLayout = self.tblLayout
+        if tblLayout is None:
+            return True
+        return False if tblLayout.type == 'fixed' else True
+
+    @autofit.setter
+    def autofit(self, value):
+        tblLayout = self.get_or_add_tblLayout()
+        tblLayout.type = 'autofit' if value else 'fixed'
+
+    @property
+    def style(self):
+        """
+        Return the value of the ``val`` attribute of the ``<w:tblStyle>``
+        child or |None| if not present.
+        """
+        tblStyle = self.tblStyle
+        if tblStyle is None:
+            return None
+        return tblStyle.val
+
+    @style.setter
+    def style(self, value):
+        self._remove_tblStyle()
+        if value is None:
+            return
+        self._add_tblStyle(val=value)
+
+
+class CT_TblWidth(BaseOxmlElement):
+    """
+    Used for ``<w:tblW>`` and ``<w:tcW>`` elements and many others, to
+    specify a table-related width.
+    """
+    # the type for `w` attr is actually ST_MeasurementOrPercent, but using
+    # XsdInt for now because only dxa (twips) values are being used. It's not
+    # entirely clear what the semantics are for other values like -01.4mm
+    w = RequiredAttribute('w:w', XsdInt)
+    type = RequiredAttribute('w:type', ST_TblWidth)
+
+    @property
+    def width(self):
+        """
+        Return the EMU length value represented by the combined ``w:w`` and
+        ``w:type`` attributes.
+        """
+        if self.type != 'dxa':
+            return None
+        return Twips(self.w)
+
+    @width.setter
+    def width(self, value):
+        self.type = 'dxa'
+        self.w = Emu(value).twips
 
 
 class CT_Tc(BaseOxmlElement):
@@ -126,3 +200,47 @@ class CT_Tc(BaseOxmlElement):
             '  <w:p/>\n'
             '</w:tc>' % nsdecls('w')
         )
+
+    @property
+    def width(self):
+        """
+        Return the EMU length value represented in the ``./w:tcPr/w:tcW``
+        child element or |None| if not present.
+        """
+        tcPr = self.tcPr
+        if tcPr is None:
+            return None
+        return tcPr.width
+
+    @width.setter
+    def width(self, value):
+        tcPr = self.get_or_add_tcPr()
+        tcPr.width = value
+
+
+class CT_TcPr(BaseOxmlElement):
+    """
+    ``<w:tcPr>`` element, defining table cell properties
+    """
+    tcW = ZeroOrOne('w:tcW', successors=(
+        'w:gridSpan', 'w:hMerge', 'w:vMerge', 'w:tcBorders', 'w:shd',
+        'w:noWrap', 'w:tcMar', 'w:textDirection', 'w:tcFitText', 'w:vAlign',
+        'w:hideMark', 'w:headers', 'w:cellIns', 'w:cellDel', 'w:cellMerge',
+        'w:tcPrChange'
+    ))
+
+    @property
+    def width(self):
+        """
+        Return the EMU length value represented in the ``<w:tcW>`` child
+        element or |None| if not present or its type is not 'dxa'.
+        """
+        tcW = self.tcW
+        if tcW is None:
+            return None
+        return tcW.width
+
+    @width.setter
+    def width(self, value):
+        tcW = self.get_or_add_tcW()
+        tcW.width = value

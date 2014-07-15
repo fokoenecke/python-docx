@@ -6,7 +6,8 @@ Text-related proxy types for python-docx, such as Paragraph and Run.
 
 from __future__ import absolute_import, print_function, unicode_literals
 
-from docx.enum.text import WD_BREAK, WD_UNDERLINE
+from .enum.text import WD_BREAK
+from .shared import Parented
 
 
 def boolproperty(f):
@@ -39,23 +40,27 @@ def boolproperty(f):
         return prop_value.val
 
     def setter(obj, value):
+        if value not in (True, False, None):
+            raise ValueError(
+                "assigned value must be True, False, or None, got '%s'"
+                % value
+            )
         r, attr_name = obj._r, f(obj)
         rPr = r.get_or_add_rPr()
         _remove_prop(rPr, attr_name)
         if value is not None:
             elm = _add_prop(rPr, attr_name)
-            if bool(value) is False:
-                elm.val = False
+            elm.val = value
 
     return property(getter, setter, doc=f.__doc__)
 
 
-class Paragraph(object):
+class Paragraph(Parented):
     """
     Proxy object wrapping ``<w:p>`` element.
     """
-    def __init__(self, p):
-        super(Paragraph, self).__init__()
+    def __init__(self, p, parent):
+        super(Paragraph, self).__init__(parent)
         self._p = p
 
     def add_run(self, text=None, style=None):
@@ -68,7 +73,7 @@ class Paragraph(object):
         break.
         """
         r = self._p.add_r()
-        run = Run(r)
+        run = Run(r, self)
         if text:
             run.text = text
         if style:
@@ -106,7 +111,7 @@ class Paragraph(object):
         to the new paragraph.
         """
         p = self._p.add_p_before()
-        paragraph = Paragraph(p)
+        paragraph = Paragraph(p, self._parent)
         if text:
             paragraph.add_run(text)
         if style is not None:
@@ -119,7 +124,7 @@ class Paragraph(object):
         Sequence of |Run| instances corresponding to the <w:r> elements in
         this paragraph.
         """
-        return [Run(r) for r in self._p.r_lst]
+        return [Run(r, self) for r in self._p.r_lst]
 
     @property
     def style(self):
@@ -158,7 +163,7 @@ class Paragraph(object):
         self.add_run(text)
 
 
-class Run(object):
+class Run(Parented):
     """
     Proxy object wrapping ``<w:r>`` element. Several of the properties on Run
     take a tri-state value, |True|, |False|, or |None|. |True| and |False|
@@ -166,8 +171,8 @@ class Run(object):
     not specified directly on the run and its effective value is taken from
     the style hierarchy.
     """
-    def __init__(self, r):
-        super(Run, self).__init__()
+    def __init__(self, r, parent):
+        super(Run, self).__init__(parent)
         self._r = r
 
     def add_break(self, break_type=WD_BREAK.LINE):
@@ -190,6 +195,37 @@ class Run(object):
             br.type = type_
         if clear is not None:
             br.clear = clear
+
+    def add_picture(self, image_path_or_stream, width=None, height=None):
+        """
+        Return an |InlineShape| instance containing the image identified by
+        *image_path_or_stream*, added to the end of this run.
+        *image_path_or_stream* can be a path (a string) or a file-like object
+        containing a binary image. If neither width nor height is specified,
+        the picture appears at its native size. If only one is specified, it
+        is used to compute a scaling factor that is then applied to the
+        unspecified dimension, preserving the aspect ratio of the image. The
+        native size of the picture is calculated using the dots-per-inch
+        (dpi) value specified in the image file, defaulting to 72 dpi if no
+        value is specified, as is often the case.
+        """
+        inline_shapes = self.part.inline_shapes
+        picture = inline_shapes.add_picture(image_path_or_stream, self)
+
+        # scale picture dimensions if width and/or height provided
+        if width is not None or height is not None:
+            native_width, native_height = picture.width, picture.height
+            if width is None:
+                scaling_factor = float(height) / float(native_height)
+                width = int(round(native_width * scaling_factor))
+            elif height is None:
+                scaling_factor = float(width) / float(native_width)
+                height = int(round(native_height * scaling_factor))
+            # set picture to scaled dimensions
+            picture.width = width
+            picture.height = height
+
+        return picture
 
     def add_tab(self):
         """
@@ -432,9 +468,6 @@ class Run(object):
 
     @underline.setter
     def underline(self, value):
-        if not WD_UNDERLINE.is_valid_setting(value):
-            tmpl = "'%s' is not a valid setting for Run.underline"
-            raise ValueError(tmpl % value)
         self._r.underline = value
 
     @boolproperty
